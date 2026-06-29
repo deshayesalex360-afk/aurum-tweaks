@@ -7,6 +7,18 @@ optimisateurs PC du marché : **Hone**, **MSI Afterburner**, **ExitLag**, **Raze
 ainsi que le savoir-faire de la communauté FR/EN du tweaking : FR33THY, Atlas OS, Chris Titus,
 marvingdt/opti-pc, NAIKO, Mopti, leStripeZ, et beaucoup d'autres.
 
+## Téléchargement
+
+**[Télécharger la dernière version — Windows 10/11 64 bits](https://github.com/deshayesalex360-afk/aurum-tweaks/releases/latest)**
+
+Version **portable** : décompressez l'archive et lancez `AurumTweaks.exe`. Les droits administrateur
+sont demandés automatiquement (nécessaires pour agir sur le Registre, les services et les capteurs
+matériels). Aucune installation — le runtime .NET est inclus.
+
+> **Note :** l'application n'est pas encore signée. Au premier lancement, SmartScreen peut afficher un
+> avertissement ; cliquez **« Informations complémentaires » → « Exécuter quand même »**. Une empreinte
+> **SHA-256** est publiée à côté de l'archive pour vérifier l'intégrité du téléchargement.
+
 ## Identité visuelle
 
 **Style Linear.app + marbre signature.** Aurum Tweaks utilise une esthétique inspirée de
