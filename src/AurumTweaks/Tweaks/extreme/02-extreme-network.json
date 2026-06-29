@@ -1,0 +1,111 @@
+[
+  {
+    "id": "msi-mode-gpu",
+    "name": { "fr": "MSI Mode pour le GPU", "en": "MSI Mode for the GPU" },
+    "description": {
+      "fr": "Active le mode Message Signaled Interrupts (MSI) pour le GPU. Réduit la latence d'interruption et lisse les frametimes. N'agit que sur le GPU — la carte réseau n'est pas modifiée.",
+      "en": "Enables Message Signaled Interrupts (MSI) mode for the GPU. Reduces interrupt latency and smooths frametimes. Acts on the GPU only — the network adapter is not modified."
+    },
+    "tier": "Extreme",
+    "category": "Advanced",
+    "risk": "Medium",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Latence d'interruption GPU réduite, frametimes plus propres",
+    "sources": [ "FR33THY", "MSI Mode Utility v3" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "warnings": {
+      "fr": "Nécessite un reboot. Si tu as un BSOD, démarre en safe mode et retire le tweak. Sur laptop, à utiliser avec MSI Mode Utility v3 (lien Pilotes)."
+    },
+    "operations": [
+      {
+        "type": "PowerShell",
+        "script": "$gpus = Get-WmiObject Win32_VideoController | Where-Object { $_.PNPDeviceID }; foreach ($g in $gpus) { $key = 'HKLM:\\SYSTEM\\CurrentControlSet\\Enum\\' + $g.PNPDeviceID + '\\Device Parameters\\Interrupt Management\\MessageSignaledInterruptProperties'; New-Item -Path $key -Force | Out-Null; New-ItemProperty -Path $key -Name 'MSISupported' -Value 1 -PropertyType DWord -Force }",
+        "revertScript": "$gpus = Get-WmiObject Win32_VideoController | Where-Object { $_.PNPDeviceID }; foreach ($g in $gpus) { $key = 'HKLM:\\SYSTEM\\CurrentControlSet\\Enum\\' + $g.PNPDeviceID + '\\Device Parameters\\Interrupt Management\\MessageSignaledInterruptProperties'; if (Test-Path $key) { Set-ItemProperty -Path $key -Name 'MSISupported' -Value 0 -ErrorAction SilentlyContinue } }"
+      }
+    ]
+  },
+  {
+    "id": "timer-resolution-min",
+    "name": { "fr": "BCDEdit : forcer le tick plateforme (timer constant)", "en": "BCDEdit: force platform tick (constant timer)" },
+    "description": {
+      "fr": "Force Windows à générer son tick d'horloge sur le timer de la plateforme plutôt que sur le timer local de l'APIC, pour un tick plus régulier. Ne fixe pas à lui seul une résolution de 0,5 ms : celle-ci dépend des applications et de la timer resolution runtime.",
+      "en": "Forces Windows to source its clock tick from the platform timer rather than the local APIC timer, for a more consistent tick. Does not by itself set a 0.5 ms resolution — that depends on applications and the runtime timer resolution."
+    },
+    "tier": "Extreme",
+    "category": "Advanced",
+    "risk": "Medium",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Tick d'horloge plus régulier sur certaines plateformes",
+    "sources": [ "lucashale.com TimerResolution", "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "warnings": { "fr": "Peut augmenter la consommation au repos. Pas pour laptop sur batterie." },
+    "operations": [
+      {
+        "type": "Bcdedit",
+        "script": "/set useplatformtick yes",
+        "revertScript": "/deletevalue useplatformtick"
+      }
+    ]
+  },
+  {
+    "id": "disable-fullscreen-opt-global",
+    "name": { "fr": "Réduire les optimisations plein écran (indicateur EFSE)", "en": "Reduce fullscreen optimizations (EFSE flag)" },
+    "description": {
+      "fr": "Met à 0 l'indicateur GameDVR_EFSEFeatureFlags dans GameConfigStore — l'une des valeurs de registre liées aux « optimisations plein écran » (FSO) de Windows. Désactiver le FSO peut laisser certains jeux repasser en plein écran exclusif (latence plus basse, G-Sync/VRR plus fiable), mais l'effet dépend du jeu et de la version de Windows : ça ne force pas tous les jeux en exclusif. La sémantique exacte de cette valeur n'est pas documentée publiquement.",
+      "en": "Sets the GameDVR_EFSEFeatureFlags flag to 0 in GameConfigStore — one of the registry values tied to Windows 'fullscreen optimizations' (FSO). Disabling FSO can let some games fall back to true exclusive fullscreen (lower latency, more reliable G-Sync/VRR), but the effect is game- and Windows-version-dependent: it does not force every game into exclusive fullscreen. The exact semantics of this value are not publicly documented."
+    },
+    "tier": "Extreme",
+    "category": "Gaming",
+    "risk": "Medium",
+    "reversible": true,
+    "expectedImpact": "Variable selon le jeu et la version de Windows",
+    "sources": [ "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "warnings": { "fr": "Effet dépendant du jeu et de la version de Windows ; certains jeux UWP/launcher l'ignorent. Réversible immédiatement." },
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKCU",
+        "key": "System\\GameConfigStore",
+        "name": "GameDVR_EFSEFeatureFlags", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      }
+    ]
+  },
+  {
+    "id": "disable-cortana",
+    "name": { "fr": "Désactiver Cortana", "en": "Disable Cortana" },
+    "description": {
+      "fr": "Désactive complètement Cortana et son indexation web associée.",
+      "en": "Fully disables Cortana and its associated web indexing."
+    },
+    "tier": "Extreme",
+    "category": "PrivacyTelemetry",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Libère 50-100 MB RAM, kill background search",
+    "sources": [ "Atlas OS", "marvingdt/opti-pc", "Tiny11" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search",
+        "name": "AllowCortana", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      },
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search",
+        "name": "DisableWebSearch", "valueType": "DWord",
+        "apply": "1", "revert": "0"
+      },
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search",
+        "name": "ConnectedSearchUseWeb", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      }
+    ]
+  }
+]

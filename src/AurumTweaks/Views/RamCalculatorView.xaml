@@ -1,0 +1,276 @@
+<UserControl x:Class="AurumTweaks.Views.RamCalculatorView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <UserControl.Resources>
+        <!-- Scoped dark input styling (the theme doesn't style ComboBox/TextBox; match BiosView/GamingView convention) -->
+        <Style x:Key="Ram.ComboBox" TargetType="ComboBox">
+            <Setter Property="Background" Value="{StaticResource Brush.Bg.Elevated}"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Default}"/>
+            <Setter Property="Padding" Value="8,5"/>
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="Ram.TextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource Brush.Bg.Elevated}"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Default}"/>
+            <Setter Property="CaretBrush" Value="{StaticResource Brush.Gold.Bright}"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Quick-frequency pill button -->
+        <Style x:Key="Ram.QuickBtn" TargetType="Button" BasedOn="{StaticResource Button.Tertiary}">
+            <Setter Property="Margin" Value="0,0,6,6"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+
+        <!-- A single timing chip (label on top, value below) -->
+        <Style x:Key="Ram.Chip" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Brush.Bg.Elevated}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Subtle}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Margin" Value="0,0,8,8"/>
+            <Setter Property="MinWidth" Value="78"/>
+        </Style>
+        <Style x:Key="Ram.Chip.Label" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource Font.Body}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Muted}"/>
+            <Setter Property="Margin" Value="0,0,0,3"/>
+        </Style>
+        <Style x:Key="Ram.Chip.Value" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource Font.Mono}"/>
+            <Setter Property="FontSize" Value="17"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush.Gold.Bright}"/>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+
+            <!-- Header -->
+            <StackPanel Margin="0,0,0,4">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Calculatrice timings RAM" Style="{StaticResource Text.Display}"/>
+                    <Border Style="{StaticResource Badge.Subtle}" Margin="14,14,0,0" VerticalAlignment="Center" Height="22">
+                        <TextBlock Text="POINT DE DÉPART" FontSize="10" FontWeight="Bold"
+                                   Foreground="{StaticResource Brush.Text.Secondary}" VerticalAlignment="Center"/>
+                    </Border>
+                </StackPanel>
+                <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,0"
+                           Text="Physique de fréquence exacte (tCK, latence réelle) + cibles en nanosecondes calibrées par type d'IC. À charger en BIOS PUIS valider — aucune stabilité garantie."/>
+            </StackPanel>
+
+            <!-- Detection note -->
+            <TextBlock Text="{Binding DetectionNote}" Style="{StaticResource Text.Muted}" Margin="0,8,0,16"
+                       Visibility="{Binding DetectionNote, Converter={StaticResource StringNotEmptyToVisibility}}"/>
+
+            <!-- ===== Inputs ===== -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="PARAMÈTRES" Style="{StaticResource Text.Label}" Margin="0,0,0,16"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="16"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Generation -->
+                        <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,0,14">
+                            <TextBlock Text="Génération" Style="{StaticResource Text.Label}" Margin="0,0,0,6"/>
+                            <ComboBox Style="{StaticResource Ram.ComboBox}"
+                                      ItemsSource="{Binding Generations}"
+                                      DisplayMemberPath="Label" SelectedValuePath="Value"
+                                      SelectedValue="{Binding SelectedGeneration, Mode=TwoWay}"/>
+                        </StackPanel>
+
+                        <!-- IC -->
+                        <StackPanel Grid.Row="0" Grid.Column="2" Margin="0,0,0,14">
+                            <TextBlock Text="Type d'IC (puces)" Style="{StaticResource Text.Label}" Margin="0,0,0,6"/>
+                            <ComboBox Style="{StaticResource Ram.ComboBox}"
+                                      ItemsSource="{Binding Ics}"
+                                      DisplayMemberPath="Label" SelectedValuePath="Value"
+                                      SelectedValue="{Binding SelectedIc, Mode=TwoWay}"/>
+                        </StackPanel>
+
+                        <!-- Rank -->
+                        <StackPanel Grid.Row="1" Grid.Column="0">
+                            <TextBlock Text="Rang" Style="{StaticResource Text.Label}" Margin="0,0,0,6"/>
+                            <ComboBox Style="{StaticResource Ram.ComboBox}"
+                                      ItemsSource="{Binding Ranks}"
+                                      DisplayMemberPath="Label" SelectedValuePath="Value"
+                                      SelectedValue="{Binding SelectedRank, Mode=TwoWay}"/>
+                        </StackPanel>
+
+                        <!-- Preset -->
+                        <StackPanel Grid.Row="1" Grid.Column="2">
+                            <TextBlock Text="Agressivité" Style="{StaticResource Text.Label}" Margin="0,0,0,6"/>
+                            <ComboBox Style="{StaticResource Ram.ComboBox}"
+                                      ItemsSource="{Binding Presets}"
+                                      DisplayMemberPath="Label" SelectedValuePath="Value"
+                                      SelectedValue="{Binding SelectedPreset, Mode=TwoWay}"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Frequency -->
+                    <TextBlock Text="Fréquence (MT/s)" Style="{StaticResource Text.Label}" Margin="0,16,0,6"/>
+                    <TextBox Style="{StaticResource Ram.TextBox}" Width="160" HorizontalAlignment="Left"
+                             Text="{Binding DataRateMtps, UpdateSourceTrigger=PropertyChanged}"/>
+                    <ItemsControl ItemsSource="{Binding QuickRates}" Margin="0,10,0,0">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Style="{StaticResource Ram.QuickBtn}"
+                                        Content="{Binding}" ContentStringFormat="{}{0} MT/s"
+                                        Command="{Binding DataContext.SetFrequencyCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                        CommandParameter="{Binding}"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Results ===== -->
+            <Border Style="{StaticResource Card.Gold}"
+                    Visibility="{Binding Result.PrimarySummary, Converter={StaticResource StringNotEmptyToVisibility}}">
+                <StackPanel>
+                    <!-- Headline: primaries + command rate -->
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Result.PrimarySummary}"
+                                   FontFamily="{StaticResource Font.Display}" FontSize="40" FontWeight="Bold"
+                                   Foreground="{StaticResource Brush.Gold.Bright}"/>
+                        <Border Style="{StaticResource Badge.Gold}" VerticalAlignment="Center" Margin="14,6,0,0" Height="24">
+                            <TextBlock Text="{Binding Result.CommandRate}" FontSize="12" FontWeight="Bold"
+                                       Foreground="{StaticResource Brush.Gold.Bright}" VerticalAlignment="Center"/>
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Margin="0,2,0,0">
+                        <Run Text="tCL-tRCD-tRP-tRAS" FontFamily="{StaticResource Font.Body}" FontSize="11"
+                             Foreground="{StaticResource Brush.Text.Muted}"/>
+                    </TextBlock>
+
+                    <!-- True latency: the honest headline number -->
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <TextBlock Text="Latence réelle " Style="{StaticResource Text.Body}" VerticalAlignment="Bottom"/>
+                        <TextBlock Text="{Binding Result.TrueLatencyNs, StringFormat={}{0:0.0}}"
+                                   FontFamily="{StaticResource Font.Display}" FontSize="24" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Brush.Text.Primary}" VerticalAlignment="Bottom" Margin="2,0,0,0"/>
+                        <TextBlock Text=" ns" Style="{StaticResource Text.Body}" VerticalAlignment="Bottom"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0">
+                        <Run Text="{Binding Result.DataRateMtps, Mode=OneWay}"/><Run Text=" MT/s"/>
+                        <Run Text=" · I/O "/><Run Text="{Binding Result.IoClockMhz, Mode=OneWay, StringFormat={}{0:0}}"/><Run Text=" MHz"/>
+                        <Run Text=" · tCK "/><Run Text="{Binding Result.CycleTimeNs, Mode=OneWay, StringFormat={}{0:0.000}}"/><Run Text=" ns"/>
+                        <Run Text=" · tRFC ≈ "/><Run Text="{Binding Result.TrfcNs, Mode=OneWay, StringFormat={}{0:0}}"/><Run Text=" ns"/>
+                    </TextBlock>
+
+                    <Border Height="1" Background="{StaticResource Brush.Border.Subtle}" Margin="0,16"/>
+
+                    <!-- Timing chips -->
+                    <TextBlock Text="TIMINGS À SAISIR" Style="{StaticResource Text.Label}" Margin="0,0,0,10"/>
+                    <WrapPanel>
+                        <Border Style="{StaticResource Ram.Chip}"><StackPanel>
+                            <TextBlock Text="tCL" Style="{StaticResource Ram.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.CasLatency}" Style="{StaticResource Ram.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Ram.Chip}"><StackPanel>
+                            <TextBlock Text="tRCD" Style="{StaticResource Ram.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.Trcd}" Style="{StaticResource Ram.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Ram.Chip}"><StackPanel>
+                            <TextBlock Text="tRP" Style="{StaticResource Ram.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.Trp}" Style="{StaticResource Ram.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Ram.Chip}"><StackPanel>
+                            <TextBlock Text="tRAS" Style="{StaticResource Ram.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.Tras}" Style="{StaticResource Ram.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Ram.Chip}"><StackPanel>
+                            <TextBlock Text="tRC" Style="{StaticResource Ram.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.Trc}" Style="{StaticResource Ram.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Ram.Chip}"><StackPanel>
+                            <TextBlock Text="tRFC" Style="{StaticResource Ram.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.Trfc}" Style="{StaticResource Ram.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Ram.Chip}"><StackPanel>
+                            <TextBlock Text="tRRD_S" Style="{StaticResource Ram.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.TrrdS}" Style="{StaticResource Ram.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Ram.Chip}"><StackPanel>
+                            <TextBlock Text="tRRD_L" Style="{StaticResource Ram.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.TrrdL}" Style="{StaticResource Ram.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Ram.Chip}"><StackPanel>
+                            <TextBlock Text="tFAW" Style="{StaticResource Ram.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.Tfaw}" Style="{StaticResource Ram.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Ram.Chip}"><StackPanel>
+                            <TextBlock Text="tWR" Style="{StaticResource Ram.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.Twr}" Style="{StaticResource Ram.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Ram.Chip}"><StackPanel>
+                            <TextBlock Text="tWTR_S" Style="{StaticResource Ram.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.Twtrs}" Style="{StaticResource Ram.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Ram.Chip}"><StackPanel>
+                            <TextBlock Text="tWTR_L" Style="{StaticResource Ram.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.Twtrl}" Style="{StaticResource Ram.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Ram.Chip}"><StackPanel>
+                            <TextBlock Text="tRTP" Style="{StaticResource Ram.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.Trtp}" Style="{StaticResource Ram.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Ram.Chip}"><StackPanel>
+                            <TextBlock Text="tCWL" Style="{StaticResource Ram.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.Tcwl}" Style="{StaticResource Ram.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Ram.Chip}"><StackPanel>
+                            <TextBlock Text="tREFI" Style="{StaticResource Ram.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.Trefi}" Style="{StaticResource Ram.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Ram.Chip}"><StackPanel>
+                            <TextBlock Text="CR" Style="{StaticResource Ram.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.CommandRate}" Style="{StaticResource Ram.Chip.Value}"/></StackPanel></Border>
+                    </WrapPanel>
+
+                    <Button Content="Copier les timings" Style="{StaticResource Button.Secondary}"
+                            Command="{Binding CopyTimingsCommand}" HorizontalAlignment="Left" Margin="0,14,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Notes / honesty ===== -->
+            <Border Style="{StaticResource Card}"
+                    Visibility="{Binding Result.PrimarySummary, Converter={StaticResource StringNotEmptyToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="À LIRE AVANT D'APPLIQUER" Style="{StaticResource Text.Label}" Margin="0,0,0,8"/>
+                    <ItemsControl ItemsSource="{Binding Result.Notes}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="0,3">
+                                    <TextBlock Text="•  " Foreground="{StaticResource Brush.Gold}" VerticalAlignment="Top"/>
+                                    <TextBlock Text="{Binding}" Style="{StaticResource Text.Secondary}" MaxWidth="820"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- Closes the loop: tighten here, validate in the built-in memtest -->
+                    <Border Height="1" Background="{StaticResource Brush.Border.Subtle}" Margin="0,12"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE73E;"
+                                   Foreground="{StaticResource Brush.Gold}" VerticalAlignment="Top" Margin="0,1,8,0"/>
+                        <TextBlock Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" MaxWidth="820"
+                                   Text="Après avoir appliqué ces timings, valide-les dans l'onglet « Stabilité RAM ». La moindre erreur = c'est trop serré : desserre d'un cran (ou monte légèrement la VDIMM/VSOC), puis relance."/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,122 @@
+[
+  {
+    "id": "tcp-1323-opts",
+    "name": { "fr": "TCP 1323 options + window scaling", "en": "TCP 1323 options + window scaling" },
+    "description": {
+      "fr": "Active TCP 1323 options + window scaling pour optimiser TCP sur les liens modernes haut débit.",
+      "en": "Enables TCP 1323 options + window scaling to optimize TCP on modern high-bandwidth links."
+    },
+    "tier": "Avance",
+    "category": "NetworkLatency",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Throughput +, latence stable sur upload massif",
+    "sources": [ "SpeedGuide", "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+        "name": "Tcp1323Opts", "valueType": "DWord",
+        "apply": "1", "revert": "3"
+      }
+    ]
+  },
+  {
+    "id": "tcp-default-ttl",
+    "name": { "fr": "TCP Default TTL = 64", "en": "TCP Default TTL = 64" },
+    "description": {
+      "fr": "Fixe le Default TTL à 64. Équivaut à un comportement réseau plus standard et prévisible.",
+      "en": "Sets Default TTL to 64. Standardizes network behavior."
+    },
+    "tier": "Avance",
+    "category": "NetworkLatency",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Stabilité réseau",
+    "sources": [ "SpeedGuide" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+        "name": "DefaultTTL", "valueType": "DWord",
+        "apply": "64", "revert": "128"
+      }
+    ]
+  },
+  {
+    "id": "tcp-disable-chimney",
+    "name": { "fr": "Désactiver TCP Chimney Offload", "en": "Disable TCP Chimney Offload" },
+    "description": {
+      "fr": "Désactive le offload TCP cassé sur certains drivers NIC modernes. Réduit les drops de paquets aléatoires.",
+      "en": "Disables broken TCP offload on some modern NIC drivers. Reduces random packet drops."
+    },
+    "tier": "Avance",
+    "category": "NetworkLatency",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Stabilité réseau + drop élimination",
+    "sources": [ "SpeedGuide" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+        "name": "EnableTCPChimney", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      },
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters",
+        "name": "EnableTCPA", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      }
+    ]
+  },
+  {
+    "id": "flush-dns-winsock-reset",
+    "name": { "fr": "Reset Winsock + flush DNS", "en": "Reset Winsock + flush DNS" },
+    "description": {
+      "fr": "Réinitialise la pile Winsock + flush le cache DNS. À utiliser quand la connexion se dégrade.",
+      "en": "Resets Winsock stack + flushes DNS cache. Use when connection degrades."
+    },
+    "tier": "Avance",
+    "category": "NetworkLatency",
+    "risk": "Low",
+    "reversible": false,
+    "requiresReboot": true,
+    "expectedImpact": "Connexion réseau remise à neuf",
+    "sources": [ "marvingdt/opti-pc", "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Cmd",
+        "script": "netsh winsock reset && netsh int ip reset && ipconfig /flushdns && ipconfig /registerdns",
+        "revertScript": "ipconfig /flushdns"
+      }
+    ]
+  },
+  {
+    "id": "dns-cloudflare",
+    "name": { "fr": "DNS Cloudflare (1.1.1.1)", "en": "Cloudflare DNS (1.1.1.1)" },
+    "description": {
+      "fr": "Bascule les DNS sur les serveurs Cloudflare 1.1.1.1 / 1.0.0.1. Privé, rapide.",
+      "en": "Switches DNS to Cloudflare 1.1.1.1 / 1.0.0.1. Private and fast."
+    },
+    "tier": "Avance",
+    "category": "NetworkLatency",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Résolution DNS plus rapide en moyenne",
+    "sources": [ "Hone", "Cloudflare" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "PowerShell",
+        "script": "Get-NetAdapter | Where-Object Status -eq 'Up' | ForEach-Object { Set-DnsClientServerAddress -InterfaceIndex $_.ifIndex -ServerAddresses ('1.1.1.1','1.0.0.1') -ErrorAction SilentlyContinue }",
+        "revertScript": "Get-NetAdapter | Where-Object Status -eq 'Up' | ForEach-Object { Set-DnsClientServerAddress -InterfaceIndex $_.ifIndex -ResetServerAddresses -ErrorAction SilentlyContinue }"
+      }
+    ]
+  }
+]

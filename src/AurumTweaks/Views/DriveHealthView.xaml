@@ -1,0 +1,151 @@
+<UserControl x:Class="AurumTweaks.Views.DriveHealthView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <UserControl.Resources>
+        <Style x:Key="MetricChip" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Subtle}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Margin" Value="0,0,8,8"/>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Santé des disques" Style="{StaticResource Text.Display}"/>
+            <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"
+                       Text="L'état de tes disques tel que Windows le rapporte : santé, température, usure SSD, heures de fonctionnement et erreurs. Ces valeurs viennent de Windows (Get-PhysicalDisk et les compteurs de fiabilité) — c'est l'interprétation du SMART par Windows, pas un décodage maison. Une mesure qu'un disque n'expose pas reste « — », jamais inventée. C'est de la surveillance matérielle : aucun gain de FPS, et un état « sain » reste une prédiction, pas une garantie — sauvegarde toujours tes données importantes."/>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                            <TextBlock Text="{Binding Headline}" Style="{StaticResource Text.H3}" TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Actualiser" Style="{StaticResource Button.Secondary}"
+                                VerticalAlignment="Top" Command="{Binding RefreshCommand}"/>
+                    </Grid>
+
+                    <ItemsControl ItemsSource="{Binding Drives}" Margin="0,14,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card.Compact}" Margin="0,5">
+                                    <StackPanel>
+                                        <!-- Header: name + capacity/media/bus on the left, verdict indicator on the right -->
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                                <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Body}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                    <TextBlock Text="{Binding MediaDisplay}" Style="{StaticResource Text.Muted}"/>
+                                                    <TextBlock Text=" · " Style="{StaticResource Text.Muted}"/>
+                                                    <TextBlock Text="{Binding BusDisplay}" Style="{StaticResource Text.Muted}"/>
+                                                    <TextBlock Text=" · " Style="{StaticResource Text.Muted}"/>
+                                                    <TextBlock Text="{Binding SizeDisplay}" Style="{StaticResource Text.Muted}"/>
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <Grid Grid.Column="1" VerticalAlignment="Top">
+                                                <StackPanel Orientation="Horizontal" Visibility="{Binding ShowCritical, Converter={StaticResource BoolToVisibility}}">
+                                                    <Ellipse Width="9" Height="9" Fill="{StaticResource Brush.Danger}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                    <TextBlock Text="Défaillant" Foreground="{StaticResource Brush.Danger}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" Visibility="{Binding ShowWatch, Converter={StaticResource BoolToVisibility}}">
+                                                    <Ellipse Width="9" Height="9" Fill="{StaticResource Brush.Warning}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                    <TextBlock Text="À surveiller" Foreground="{StaticResource Brush.Warning}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" Visibility="{Binding ShowHealthy, Converter={StaticResource BoolToVisibility}}">
+                                                    <Ellipse Width="9" Height="9" Fill="{StaticResource Brush.Success}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                    <TextBlock Text="Sain" Foreground="{StaticResource Brush.Success}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" Visibility="{Binding ShowUnknown, Converter={StaticResource BoolToVisibility}}">
+                                                    <Ellipse Width="9" Height="9" Fill="{StaticResource Brush.Text.Muted}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                    <TextBlock Text="Inconnu" Foreground="{StaticResource Brush.Text.Muted}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Grid>
+
+                                        <TextBlock Text="{Binding VerdictMessage}" Style="{StaticResource Text.Secondary}"
+                                                   Margin="0,10,0,0" TextWrapping="Wrap"/>
+
+                                        <!-- Measured reliability metrics — each chip shows only when the value is real -->
+                                        <WrapPanel Margin="0,10,0,0">
+                                            <Border Style="{StaticResource MetricChip}">
+                                                <StackPanel>
+                                                    <TextBlock Text="État Windows" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                                    <TextBlock Text="{Binding HealthDisplay}" Style="{StaticResource Text.Body}"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Style="{StaticResource MetricChip}"
+                                                    Visibility="{Binding HasTemperature, Converter={StaticResource BoolToVisibility}}">
+                                                <StackPanel>
+                                                    <TextBlock Text="Température" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                                    <TextBlock Text="{Binding TemperatureDisplay}" Style="{StaticResource Text.Body}"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Style="{StaticResource MetricChip}"
+                                                    Visibility="{Binding HasWear, Converter={StaticResource BoolToVisibility}}">
+                                                <StackPanel>
+                                                    <TextBlock Text="Usure" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                                    <TextBlock Text="{Binding WearDisplay}" Style="{StaticResource Text.Body}"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Style="{StaticResource MetricChip}"
+                                                    Visibility="{Binding HasPowerOnHours, Converter={StaticResource BoolToVisibility}}">
+                                                <StackPanel>
+                                                    <TextBlock Text="Fonctionnement" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                                    <TextBlock Text="{Binding PowerOnHoursDisplay}" Style="{StaticResource Text.Body}"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Style="{StaticResource MetricChip}"
+                                                    Visibility="{Binding HasErrors, Converter={StaticResource BoolToVisibility}}">
+                                                <StackPanel>
+                                                    <TextBlock Text="Erreurs non corrigées" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                                    <TextBlock Text="{Binding UncorrectedErrorsDisplay}" Style="{StaticResource Text.Body}"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </WrapPanel>
+
+                                        <TextBlock Style="{StaticResource Text.Muted}" FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap"
+                                                   Visibility="{Binding IsUsb, Converter={StaticResource BoolToVisibility}}"
+                                                   Text="Disque externe (USB) : le pont USB masque souvent les compteurs SMART — les mesures absentes ne veulent pas dire « en bonne santé »."/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card.Subtle}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="Pour aller plus loin" Style="{StaticResource Text.H3}"/>
+                    <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,6,0,0" TextWrapping="Wrap"
+                               Text="Cette page lit l'état — elle ne « répare » rien (ce serait malhonnête de le prétendre). L'entretien réel est confié aux outils Windows : l'optimiseur de lecteurs (défragmentation d'un HDD, TRIM d'un SSD) et les paramètres de stockage."/>
+                    <WrapPanel Margin="0,12,0,0">
+                        <Button Content="Optimiser les lecteurs" Style="{StaticResource Button.Secondary}"
+                                Command="{Binding OpenOptimizerCommand}"/>
+                        <Button Content="Paramètres de stockage" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding OpenStorageSettingsCommand}"/>
+                        <Button Content="Copier le rapport" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding CopyReportCommand}"
+                                ToolTip="Copie l'état de chaque disque (santé Windows, température, usure, heures, erreurs) dans le presse-papiers — prêt à coller sur un forum ou un ticket. Activé après lecture."/>
+                        <Button Content="Exporter…" Style="{StaticResource Button.Tertiary}" Margin="10,0,0,0"
+                                Command="{Binding ExportReportCommand}"
+                                ToolTip="Enregistre le même rapport en fichier texte (.txt) — à joindre à un ticket ou garder avant une réinstallation. Activé après lecture."/>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

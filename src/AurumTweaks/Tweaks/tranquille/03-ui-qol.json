@@ -1,0 +1,98 @@
+[
+  {
+    "id": "menu-show-delay-zero",
+    "name": { "fr": "Supprimer le délai des menus", "en": "Remove menu show delay" },
+    "description": {
+      "fr": "Réduit MenuShowDelay de 400 ms (défaut) à 0. Interface plus réactive instantanément.",
+      "en": "Reduces MenuShowDelay from 400 ms default to 0. Instantly more responsive UI."
+    },
+    "tier": "Tranquille",
+    "category": "UIQualityOfLife",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Réactivité menus +++ (perçue)",
+    "sources": [ "FR33THY", "marvingdt/opti-pc" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "Control Panel\\Desktop",
+        "name": "MenuShowDelay",
+        "valueType": "String",
+        "apply": "0",
+        "revert": "400"
+      }
+    ]
+  },
+  {
+    "id": "disable-widgets",
+    "name": { "fr": "Désactiver Widgets Windows 11", "en": "Disable Widgets" },
+    "description": {
+      "fr": "Désactive le panneau Widgets de la barre des tâches (qui sollicite GPU au repos).",
+      "en": "Disables the Widgets panel (which uses GPU when idle)."
+    },
+    "tier": "Tranquille",
+    "category": "UIQualityOfLife",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Réduit usage GPU idle, libère ~100 MB RAM",
+    "sources": [ "Mopti", "Atlas OS", "ShutUp10" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "name": "TaskbarDa",
+        "valueType": "DWord",
+        "apply": "0",
+        "revert": "1"
+      }
+    ]
+  },
+  {
+    "id": "hung-app-timeout",
+    "name": { "fr": "Accélérer la fermeture des apps figées", "en": "Speed up frozen-app close" },
+    "description": {
+      "fr": "Réduit les délais HungAppTimeout et WaitToKillAppTimeout pour fermer plus vite les apps qui freezent.",
+      "en": "Reduces HungAppTimeout and WaitToKillAppTimeout to close frozen apps faster."
+    },
+    "tier": "Tranquille",
+    "category": "UIQualityOfLife",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Arrêt du PC plus rapide",
+    "sources": [ "FR33THY", "ChrisTitusTech WinUtil" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "Control Panel\\Desktop",
+        "name": "HungAppTimeout",
+        "valueType": "String",
+        "apply": "1000",
+        "revert": "5000"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "Control Panel\\Desktop",
+        "name": "WaitToKillAppTimeout",
+        "valueType": "String",
+        "apply": "2000",
+        "revert": "20000"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Control",
+        "name": "WaitToKillServiceTimeout",
+        "valueType": "String",
+        "apply": "2000",
+        "revert": "5000"
+      }
+    ]
+  }
+]

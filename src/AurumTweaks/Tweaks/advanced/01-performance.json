@@ -1,0 +1,169 @@
+[
+  {
+    "id": "network-throttling-off",
+    "name": { "fr": "Désactiver le throttling réseau multimedia", "en": "Disable network multimedia throttling" },
+    "description": {
+      "fr": "Passe NetworkThrottlingIndex à 0xFFFFFFFF (désactivé). Windows ne limite plus le trafic réseau au profit du multimédia, libérant la bande passante pour le jeu.",
+      "en": "Sets NetworkThrottlingIndex to 0xFFFFFFFF (disabled). Windows no longer throttles network traffic for multimedia, freeing bandwidth for the game."
+    },
+    "tier": "Avance",
+    "category": "NetworkLatency",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Latence et jitter réduits",
+    "sources": [ "FR33THY", "Atlas OS", "SpeedGuide" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile",
+        "name": "NetworkThrottlingIndex",
+        "valueType": "DWord",
+        "apply": "-1",
+        "revert": "10"
+      }
+    ]
+  },
+  {
+    "id": "system-responsiveness-tuned",
+    "name": { "fr": "Optimiser SystemResponsiveness pour le jeu", "en": "Tune SystemResponsiveness for gaming" },
+    "description": {
+      "fr": "Réduit SystemResponsiveness de 20 à 10. Windows réserve moins de CPU pour les tâches background, en donne plus aux apps actives.",
+      "en": "Reduces SystemResponsiveness from 20 to 10. Windows reserves less CPU for background tasks."
+    },
+    "tier": "Avance",
+    "category": "PerformanceMultimedia",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Frametimes plus stables, gain mesurable sur jeux CPU-bound",
+    "sources": [ "FR33THY", "Atlas OS" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile",
+        "name": "SystemResponsiveness",
+        "valueType": "DWord",
+        "apply": "10",
+        "revert": "20"
+      }
+    ]
+  },
+  {
+    "id": "games-task-priority",
+    "name": { "fr": "Élever la priorité MMCSS pour les jeux", "en": "Raise MMCSS Games priority" },
+    "description": {
+      "fr": "Configure la tâche MMCSS 'Games' pour qu'elle reçoive priorité High en GPU et SFIO. Les jeux compatibles MMCSS y gagnent.",
+      "en": "Configures the MMCSS 'Games' task to receive High GPU and SFIO priority."
+    },
+    "tier": "Avance",
+    "category": "Gaming",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Léger gain sur jeux MMCSS-aware",
+    "sources": [ "FR33THY", "Atlas OS" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Games",
+        "name": "GPU Priority",
+        "valueType": "DWord",
+        "apply": "8",
+        "revert": "8"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Games",
+        "name": "Priority",
+        "valueType": "DWord",
+        "apply": "6",
+        "revert": "2"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Games",
+        "name": "Scheduling Category",
+        "valueType": "String",
+        "apply": "High",
+        "revert": "Medium"
+      }
+    ]
+  },
+  {
+    "id": "disable-hibernation",
+    "name": { "fr": "Désactiver l'hibernation", "en": "Disable hibernation" },
+    "description": {
+      "fr": "Désactive l'hibernation et supprime hiberfil.sys. Libère plusieurs GB de disque.",
+      "en": "Disables hibernation and removes hiberfil.sys. Frees several GB of disk."
+    },
+    "tier": "Avance",
+    "category": "PowerBoot",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Libère 4-8 GB sur SSD système",
+    "sources": [ "FR33THY", "marvingdt/opti-pc" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Cmd",
+        "script": "powercfg -hibernate off",
+        "revertScript": "powercfg -hibernate on"
+      }
+    ]
+  },
+  {
+    "id": "tcp-ack-frequency",
+    "name": { "fr": "Désactiver Nagle's Algorithm (TCP ACK)", "en": "Disable Nagle's Algorithm (TCP ACK)" },
+    "description": {
+      "fr": "Force TcpAckFrequency=1 et TCPNoDelay=1 sur toutes les interfaces. Réduit la latence réseau sur les paquets de petite taille (jeux compétitifs).",
+      "en": "Forces TcpAckFrequency=1 and TCPNoDelay=1 on all interfaces. Reduces network latency on small packets (competitive games)."
+    },
+    "tier": "Avance",
+    "category": "NetworkLatency",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Latence réduite sur certains jeux UDP/TCP",
+    "sources": [ "Hone", "FR33THY", "SpeedGuide" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "PowerShell",
+        "script": "Get-ChildItem 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces' | ForEach-Object { New-ItemProperty -Path $_.PSPath -Name 'TcpAckFrequency' -Value 1 -PropertyType DWord -Force ; New-ItemProperty -Path $_.PSPath -Name 'TCPNoDelay' -Value 1 -PropertyType DWord -Force }",
+        "revertScript": "Get-ChildItem 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces' | ForEach-Object { Remove-ItemProperty -Path $_.PSPath -Name 'TcpAckFrequency' -ErrorAction SilentlyContinue ; Remove-ItemProperty -Path $_.PSPath -Name 'TCPNoDelay' -ErrorAction SilentlyContinue }"
+      }
+    ]
+  },
+  {
+    "id": "ndu-disable",
+    "name": { "fr": "Désactiver Ndu (Network Data Usage Monitor)", "en": "Disable Ndu (Network Data Usage Monitor)" },
+    "description": {
+      "fr": "Désactive le service Ndu, consommateur RAM connu. Libère 50-200 MB sur idle.",
+      "en": "Disables the Ndu service, a known RAM hog. Frees 50-200 MB on idle."
+    },
+    "tier": "Avance",
+    "category": "Services",
+    "risk": "Low",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Libère 50-200 MB RAM",
+    "sources": [ "FR33THY", "Atlas OS" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Services\\Ndu",
+        "name": "Start",
+        "valueType": "DWord",
+        "apply": "4",
+        "revert": "2"
+      }
+    ]
+  }
+]

@@ -1,0 +1,186 @@
+<UserControl x:Class="AurumTweaks.Views.LatencyDiagnosticsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <UserControl.Resources>
+        <Style x:Key="MetricChip" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Subtle}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Margin" Value="0,0,10,10"/>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Latence système (DPC/ISR)" Style="{StaticResource Text.Display}"/>
+            <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"
+                       Text="Mesure la charge que les interruptions matérielles (ISR) et les appels de procédure différés (DPC) imposent à chaque cœur. Une charge DPC/ISR élevée est une cause classique de micro-saccades et de coupures audio. Les valeurs viennent des compteurs de temps du noyau Windows (la même source que la colonne « % temps DPC » de Process Explorer) — rien n'est inventé. Important : cette page indique COMBIEN de temps CPU part en DPC/ISR, pas QUEL pilote en est responsable — identifier le coupable demande une trace ETW complète (LatencyMon, DPC Latency Checker). Les seuils sont indicatifs. C'est un diagnostic en lecture seule : aucun « réglage », aucun gain de FPS promis."/>
+
+            <!-- Verdict + controls -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                            <TextBlock Text="{Binding Headline}" Style="{StaticResource Text.H3}" TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <!-- Verdict indicator: one of four, mutually exclusive (errors-first verdict core) -->
+                        <Grid Grid.Column="1" VerticalAlignment="Top">
+                            <StackPanel Orientation="Horizontal" Visibility="{Binding ShowLow, Converter={StaticResource BoolToVisibility}}">
+                                <Ellipse Width="10" Height="10" Fill="{StaticResource Brush.Success}" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                                <TextBlock Text="{Binding VerdictLabel}" Foreground="{StaticResource Brush.Success}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Visibility="{Binding ShowModerate, Converter={StaticResource BoolToVisibility}}">
+                                <Ellipse Width="10" Height="10" Fill="{StaticResource Brush.Warning}" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                                <TextBlock Text="{Binding VerdictLabel}" Foreground="{StaticResource Brush.Warning}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Visibility="{Binding ShowHigh, Converter={StaticResource BoolToVisibility}}">
+                                <Ellipse Width="10" Height="10" Fill="{StaticResource Brush.Danger}" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                                <TextBlock Text="{Binding VerdictLabel}" Foreground="{StaticResource Brush.Danger}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Visibility="{Binding ShowUnknown, Converter={StaticResource BoolToVisibility}}">
+                                <Ellipse Width="10" Height="10" Fill="{StaticResource Brush.Text.Muted}" VerticalAlignment="Center" Margin="0,0,7,0"/>
+                                <TextBlock Text="{Binding VerdictLabel}" Foreground="{StaticResource Brush.Text.Muted}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Grid>
+                    </Grid>
+
+                    <TextBlock Text="{Binding VerdictMessage}" Style="{StaticResource Text.Secondary}"
+                               Margin="0,12,0,0" TextWrapping="Wrap"/>
+
+                    <!-- Aggregate measured metrics -->
+                    <WrapPanel Margin="0,14,0,0" Visibility="{Binding HasResults, Converter={StaticResource BoolToVisibility}}">
+                        <Border Style="{StaticResource MetricChip}">
+                            <StackPanel>
+                                <TextBlock Text="DPC max" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                <TextBlock Text="{Binding MaxDpcDisplay}" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChip}">
+                            <StackPanel>
+                                <TextBlock Text="ISR max" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                <TextBlock Text="{Binding MaxInterruptDisplay}" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChip}">
+                            <StackPanel>
+                                <TextBlock Text="Interruptions" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                <TextBlock Text="{Binding TotalInterruptRateDisplay}" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChip}">
+                            <StackPanel>
+                                <TextBlock Text="Cœur le plus chargé" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                <TextBlock Text="{Binding WorstDpcDisplay}" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Border>
+                    </WrapPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <Button Content="Mesurer (2 s)" Style="{StaticResource Button.Primary}"
+                                Command="{Binding MeasureCommand}"/>
+                        <Button Content="Mesure longue (10 s)" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding MeasureLongCommand}"/>
+                        <Button Content="Copier le rapport" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding CopyReportCommand}"
+                                ToolTip="Copie le verdict, la synthèse et le détail par cœur dans le presse-papiers — prêt à coller sur un forum ou un ticket de support. Activé après une mesure."/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- System timer resolution — live, read-only. Win10 2004+ per-process caveat disclosed. -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0"
+                    Visibility="{Binding HasTimerResolution, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="Résolution du minuteur système" Style="{StaticResource Text.H3}"/>
+                    <TextBlock Text="{Binding TimerResolution.Headline}" Style="{StaticResource Text.Body}"
+                               FontWeight="SemiBold" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding TimerResolution.Detail}" Style="{StaticResource Text.Secondary}"
+                               Margin="0,4,0,0" TextWrapping="Wrap"/>
+                    <WrapPanel Margin="0,12,0,0">
+                        <Border Style="{StaticResource MetricChip}">
+                            <StackPanel>
+                                <TextBlock Text="Actuelle" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                <TextBlock Text="{Binding TimerResolution.CurrentDisplay}" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChip}">
+                            <StackPanel>
+                                <TextBlock Text="Maximum supporté" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                <TextBlock Text="{Binding TimerResolution.BestDisplay}" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChip}">
+                            <StackPanel>
+                                <TextBlock Text="Défaut Windows" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                <TextBlock Text="{Binding TimerResolution.DefaultDisplay}" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </Border>
+                    </WrapPanel>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,10,0,0" TextWrapping="Wrap" FontSize="11"
+                               Text="Lecture seule — Aurum ne modifie pas la résolution. Depuis Windows 10 (2004), la résolution du minuteur est gérée par processus : cette valeur globale n'est qu'indicative et certains programmes ne la suivent pas. Une résolution fine (0,5 ms) régularise le timing mais augmente un peu la consommation au repos."/>
+                </StackPanel>
+            </Border>
+
+            <!-- Per-core breakdown -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0"
+                    Visibility="{Binding HasResults, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="Détail par cœur logique" Style="{StaticResource Text.H3}"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap"
+                               Text="Occupation totale, part DPC, part ISR et débit d'interruptions de chaque cœur sur la fenêtre de mesure. Les DPC se sérialisent souvent sur un seul cœur — d'où l'intérêt de repérer le pic, pas seulement la moyenne."/>
+                    <ItemsControl ItemsSource="{Binding PerCpu}" Margin="0,12,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card.Compact}" Margin="0,3">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" MinWidth="72"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding CpuLabel}" Style="{StaticResource Text.Body}"
+                                                   FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                        <StackPanel Grid.Column="1">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="DPC " Style="{StaticResource Text.Muted}" FontSize="11"/>
+                                                <TextBlock Text="{Binding DpcDisplay}" Style="{StaticResource Text.Body}" FontSize="12"/>
+                                                <TextBlock Text="   ·   ISR " Style="{StaticResource Text.Muted}" FontSize="11"/>
+                                                <TextBlock Text="{Binding InterruptDisplay}" Style="{StaticResource Text.Body}" FontSize="12"/>
+                                                <TextBlock Text="   ·   occupation " Style="{StaticResource Text.Muted}" FontSize="11"/>
+                                                <TextBlock Text="{Binding BusyDisplay}" Style="{StaticResource Text.Body}" FontSize="12"/>
+                                                <TextBlock Text="   ·   " Style="{StaticResource Text.Muted}" FontSize="11"/>
+                                                <TextBlock Text="{Binding InterruptRateDisplay}" Style="{StaticResource Text.Muted}" FontSize="12"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Honest hand-offs -->
+            <Border Style="{StaticResource Card.Subtle}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="Identifier le pilote responsable" Style="{StaticResource Text.H3}"/>
+                    <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,6,0,0" TextWrapping="Wrap"
+                               Text="Cette page mesure la charge, mais ne peut pas nommer le pilote fautif à partir de la seule charge — ce serait malhonnête de l'inventer. Pour pointer le coupable, utilise un traceur ETW dédié : LatencyMon ou DPC Latency Checker (gratuits). Les outils Windows ci-dessous aident à visualiser l'activité dans le temps : le Moniteur de fiabilité et de performances peut tracer les compteurs « % temps DPC » et « interruptions/s », et le Moniteur de ressources montre l'activité CPU en direct."/>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Analyseur de performances" Style="{StaticResource Button.Secondary}"
+                                Command="{Binding OpenPerfMonCommand}"/>
+                        <Button Content="Moniteur de ressources" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding OpenResMonCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,95 @@
+[
+  {
+    "id": "disable-power-throttling",
+    "name": { "fr": "Désactiver Power Throttling", "en": "Disable Power Throttling" },
+    "description": {
+      "fr": "Désactive Power Throttling au niveau système. Empêche Windows de réduire la puissance des apps en background.",
+      "en": "Disables Power Throttling. Prevents Windows from throttling background apps."
+    },
+    "tier": "Avance",
+    "category": "PowerBoot",
+    "risk": "Low",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Aucun throttle sur jeu fenêtré ou en alt-tab",
+    "sources": [ "marvingdt/opti-pc", "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "warnings": { "fr": "Sur laptop : peut diminuer l'autonomie batterie." },
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling",
+        "name": "PowerThrottlingOff", "valueType": "DWord",
+        "apply": "1", "revert": "0"
+      }
+    ]
+  },
+  {
+    "id": "disable-storage-sense",
+    "name": { "fr": "Désactiver Storage Sense", "en": "Disable Storage Sense" },
+    "description": {
+      "fr": "Désactive le service Storage Sense qui scanne automatiquement le disque. Élimine les spikes I/O.",
+      "en": "Disables Storage Sense auto-cleanup. Removes I/O spikes."
+    },
+    "tier": "Avance",
+    "category": "Services",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Élimine spikes I/O auto-clean",
+    "sources": [ "ShutUp10", "Atlas OS" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKCU",
+        "key": "Software\\Microsoft\\Windows\\CurrentVersion\\StorageSense\\Parameters\\StoragePolicy",
+        "name": "01", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      }
+    ]
+  },
+  {
+    "id": "disable-usb-selective-suspend",
+    "name": { "fr": "Désactiver USB Selective Suspend", "en": "Disable USB Selective Suspend" },
+    "description": {
+      "fr": "Désactive la mise en veille USB sélective. Élimine les déco USB random (souris/clavier/Wi-Fi dongle).",
+      "en": "Disables USB selective suspend. Eliminates random USB disconnects."
+    },
+    "tier": "Avance",
+    "category": "PowerBoot",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Fin des micro-coupures souris/clavier/USB devices",
+    "sources": [ "FR33THY", "marvingdt/opti-pc" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "PowerShell",
+        "script": "powercfg /setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 0 ; powercfg /setactive SCHEME_CURRENT",
+        "revertScript": "powercfg /setacvalueindex SCHEME_CURRENT 2a737441-1930-4402-8d77-b2bebba308a3 48e6b7a6-50f5-4782-a5d4-53bb8f07e226 1 ; powercfg /setactive SCHEME_CURRENT"
+      }
+    ]
+  },
+  {
+    "id": "set-cpu-min-100",
+    "name": { "fr": "CPU min state à 100% (Ultimate Perf)", "en": "CPU min state to 100% (Ultimate Perf)" },
+    "description": {
+      "fr": "Force le CPU à rester à 100% min/max. Plus de variabilité de fréquence → frametimes plus stables. Conso et chaleur en hausse.",
+      "en": "Forces CPU to stay 100% min/max. No frequency variability — more stable frametimes. Higher power/heat."
+    },
+    "tier": "Avance",
+    "category": "PowerBoot",
+    "risk": "Medium",
+    "reversible": true,
+    "expectedImpact": "Frametimes ultra-stables, au prix d'une conso et d'une température au repos plus élevées",
+    "sources": [ "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "warnings": { "fr": "À ne PAS appliquer sur laptop sans secteur." },
+    "operations": [
+      {
+        "type": "PowerShell",
+        "script": "powercfg /setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMIN 100 ; powercfg /setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMAX 100 ; powercfg /setactive SCHEME_CURRENT",
+        "revertScript": "powercfg /setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMIN 5 ; powercfg /setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCTHROTTLEMAX 100 ; powercfg /setactive SCHEME_CURRENT"
+      }
+    ]
+  }
+]

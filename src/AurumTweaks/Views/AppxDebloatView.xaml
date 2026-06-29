@@ -1,0 +1,79 @@
+<UserControl x:Class="AurumTweaks.Views.AppxDebloatView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Applications préinstallées" Style="{StaticResource Text.Display}"/>
+            <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"
+                       Text="Windows installe des applications « bloatware » (jeux promotionnels, Actualités/Météo Bing, promos Office, lecteurs redondants…) que la plupart des gens n'ouvrent jamais. Cette liste ne contient que des apps grand public connues et sûres à retirer — jamais les composants système. La désinstallation se fait pour ta session utilisateur et est réversible uniquement en réinstallant depuis le Microsoft Store. C'est de l'espace disque, des processus en arrière-plan et de la confidentialité — aucun gain de FPS n'est promis."/>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Actualiser" Style="{StaticResource Button.Primary}" Command="{Binding RefreshCommand}"/>
+                        <Button Content="Applications installées (Windows)" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding OpenAppsSettingsCommand}"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
+                               Text="L'état est lu en direct via Get-AppxPackage. Une app absente de ce PC est indiquée « absente » et n'est jamais inventée. Les apps Xbox utiles (Game Bar, Game Pass) sont signalées « à conserver ». Supprimer = Remove-AppxPackage (réinstallable depuis le Store)."/>
+
+                    <ItemsControl ItemsSource="{Binding Apps}" Margin="0,12,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card.Compact}" Margin="0,4">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Body}"/>
+                                                <Border Background="#22FFFFFF" CornerRadius="3" Margin="8,0,0,0" Padding="5,1"
+                                                        Visibility="{Binding ShowAbsentBadge, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="ABSENTE" FontSize="8" FontWeight="Bold"
+                                                               Style="{StaticResource Text.Muted}"/>
+                                                </Border>
+                                                <Border Background="#22FFFFFF" CornerRadius="3" Margin="8,0,0,0" Padding="5,1"
+                                                        Visibility="{Binding ShowSystemBadge, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="NON SUPPRIMABLE" FontSize="8" FontWeight="Bold"
+                                                               Style="{StaticResource Text.Muted}"/>
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Style="{StaticResource Text.Muted}" Margin="0,2,0,0">
+                                                <Run Text="{Binding CategoryDisplay, Mode=OneWay}"/>
+                                                <Run Text=" ·"/>
+                                                <Run Text="{Binding StateDisplay, Mode=OneWay}"/>
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding PackageName}" Style="{StaticResource Text.Muted}"
+                                                       FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                                            <TextBlock Text="{Binding Advice}" Style="{StaticResource Text.Muted}"
+                                                       FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                        </StackPanel>
+
+                                        <Border Grid.Column="1" Style="{StaticResource Badge.Extreme}" VerticalAlignment="Center"
+                                                Margin="0,0,10,0"
+                                                Visibility="{Binding ShowKeepBadge, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="À CONSERVER" FontSize="9" FontWeight="Bold"
+                                                       Foreground="{StaticResource Brush.Danger}"/>
+                                        </Border>
+
+                                        <Button Grid.Column="2" VerticalAlignment="Center"
+                                                Content="Supprimer" Style="{StaticResource Button.Secondary}"
+                                                Visibility="{Binding ShowRemove, Converter={StaticResource BoolToVisibility}}"
+                                                Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

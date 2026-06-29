@@ -1,0 +1,100 @@
+[
+  {
+    "id": "show-file-extensions",
+    "name": { "fr": "Afficher les extensions de fichier", "en": "Show file extensions" },
+    "description": {
+      "fr": "Force l'Explorateur à afficher les extensions de fichier. Plus sûr (anti-phishing) et plus pratique.",
+      "en": "Forces Explorer to show file extensions. Safer (anti-phishing) and more convenient."
+    },
+    "tier": "Tranquille",
+    "category": "UIQualityOfLife",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Sécurité + ergonomie",
+    "sources": [ "marvingdt/opti-pc", "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKCU",
+        "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "name": "HideFileExt", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      }
+    ]
+  },
+  {
+    "id": "show-hidden-files",
+    "name": { "fr": "Afficher les fichiers cachés", "en": "Show hidden files" },
+    "description": {
+      "fr": "Affiche les fichiers et dossiers cachés dans l'Explorateur. Pratique pour le debug et la maintenance.",
+      "en": "Shows hidden files and folders in Explorer. Useful for debug/maintenance."
+    },
+    "tier": "Tranquille",
+    "category": "UIQualityOfLife",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Ergonomie",
+    "sources": [ "marvingdt/opti-pc" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKCU",
+        "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "name": "Hidden", "valueType": "DWord",
+        "apply": "1", "revert": "2"
+      }
+    ]
+  },
+  {
+    "id": "disable-taskview-button",
+    "name": { "fr": "Masquer le bouton Vue des tâches", "en": "Hide Task View button" },
+    "description": {
+      "fr": "Cache le bouton Vue des tâches de la barre des tâches. Libère un peu de place.",
+      "en": "Hides the Task View button from the taskbar."
+    },
+    "tier": "Tranquille",
+    "category": "UIQualityOfLife",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Ergonomie",
+    "sources": [ "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKCU",
+        "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "name": "ShowTaskViewButton", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      }
+    ]
+  },
+  {
+    "id": "disable-recent-files-explorer",
+    "name": { "fr": "Désactiver les fichiers récents dans l'Explorateur", "en": "Disable recent files in Explorer" },
+    "description": {
+      "fr": "Cache les fichiers récents et fréquents dans Accès rapide. Plus de privacy + Explorateur plus rapide.",
+      "en": "Hides recent and frequent files in Quick Access. Privacy + faster Explorer."
+    },
+    "tier": "Tranquille",
+    "category": "PrivacyTelemetry",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Privacy + Explorateur plus rapide",
+    "sources": [ "ShutUp10", "Atlas OS" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKCU",
+        "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer",
+        "name": "ShowRecent", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      },
+      {
+        "type": "Registry", "hive": "HKCU",
+        "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer",
+        "name": "ShowFrequent", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      }
+    ]
+  }
+]

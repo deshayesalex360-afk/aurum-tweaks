@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <AssemblyName>AurumTweaks.KeyGen</AssemblyName>
+    <RootNamespace>AurumTweaks.KeyGen</RootNamespace>
+    <NeutralLanguage>fr-FR</NeutralLanguage>
+    <Description>Outil hors-ligne d'émission de licences Aurum Tweaks (côté vendeur)</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Reuse the EXACT crypto the consumer app ships (LicenseIssuer / LicenseVerifier / LicensePayload), so any token
+         this tool mints is guaranteed to verify in the app — one implementation, zero drift between issue and verify.
+         A ProjectReference (not copied source) is what makes that guarantee real. -->
+    <ProjectReference Include="..\..\src\AurumTweaks\AurumTweaks.csproj" />
+  </ItemGroup>
+
+</Project>

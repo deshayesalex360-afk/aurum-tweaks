@@ -1,0 +1,107 @@
+[
+  {
+    "id": "gpu-tdr-delay",
+    "name": { "fr": "Augmenter le TDR Delay GPU", "en": "Increase GPU TDR Delay" },
+    "description": {
+      "fr": "Passe TdrDelay de 2 à 10 secondes. Donne plus de marge avant que Windows ne réinitialise le pilote GPU (écran noir « Le pilote a cessé de répondre »), surtout utile en overclocking.",
+      "en": "Raises TdrDelay from 2 to 10 seconds. Gives more headroom before Windows resets the GPU driver (the black-screen 'display driver stopped responding'), useful under overclocking."
+    },
+    "tier": "Avance",
+    "category": "Advanced",
+    "risk": "Low",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Moins de resets pilote / écrans noirs en OC",
+    "sources": [ "NVIDIA docs", "Microsoft docs", "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 45,
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+        "name": "TdrDelay", "valueType": "DWord",
+        "apply": "10", "revert": "2"
+      }
+    ]
+  },
+  {
+    "id": "nvidia-disable-telemetry",
+    "name": { "fr": "Désactiver la télémétrie NVIDIA", "en": "Disable NVIDIA telemetry" },
+    "description": {
+      "fr": "Désactive le service NvTelemetryContainer et les tâches planifiées de remontée NVIDIA (NvTmRep, NvProfileUpdater…). Aucune incidence sur les performances graphiques.",
+      "en": "Disables the NvTelemetryContainer service and NVIDIA reporting scheduled tasks (NvTmRep, NvProfileUpdater…). No impact on graphics performance."
+    },
+    "tier": "Avance",
+    "category": "PrivacyTelemetry",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Privacy + quelques ressources idle libérées",
+    "sources": [ "NVIDIA", "ShutUp10", "marvingdt/opti-pc" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "applicability": { "gpuVendors": [ "Nvidia" ] },
+    "priority": 55,
+    "operations": [
+      {
+        "type": "Service",
+        "serviceName": "NvTelemetryContainer",
+        "startupApply": "Disabled", "startupRevert": "Manual"
+      },
+      {
+        "type": "PowerShell",
+        "script": "Get-ScheduledTask | Where-Object { $_.TaskName -like 'NvTm*' -or $_.TaskName -like 'NvProfileUpdater*' -or $_.TaskName -like 'NvDriverUpdate*' } | Disable-ScheduledTask -ErrorAction SilentlyContinue",
+        "revertScript": "Get-ScheduledTask | Where-Object { $_.TaskName -like 'NvTm*' -or $_.TaskName -like 'NvProfileUpdater*' -or $_.TaskName -like 'NvDriverUpdate*' } | Enable-ScheduledTask -ErrorAction SilentlyContinue"
+      }
+    ]
+  },
+  {
+    "id": "nvidia-prefer-max-performance",
+    "name": { "fr": "NVIDIA : privilégier les performances max (PowerMizer)", "en": "NVIDIA: prefer maximum performance (PowerMizer)" },
+    "description": {
+      "fr": "Force PowerMizer en mode performances maximales via le registre du pilote NVIDIA. Évite les chutes de fréquence GPU intempestives (downclock) qui causent du stutter et des 1% low en baisse.",
+      "en": "Forces PowerMizer to maximum-performance mode via the NVIDIA driver registry. Prevents spurious GPU downclocking that causes stutter and lower 1% lows."
+    },
+    "tier": "Avance",
+    "category": "PerformanceMultimedia",
+    "risk": "Low",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Fréquence GPU plus stable, 1% low améliorés",
+    "sources": [ "NVIDIA Profile Inspector", "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "applicability": { "gpuVendors": [ "Nvidia" ] },
+    "priority": 50,
+    "warnings": { "fr": "Le GPU restera à fréquence élevée plus souvent (légèrement plus de conso/chaleur au repos)." },
+    "operations": [
+      {
+        "type": "PowerShell",
+        "script": "Get-ChildItem 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}' | Where-Object { $_.PSChildName -match '^[0-9]{4}$' } | ForEach-Object { $p = $_.PSPath; $d = (Get-ItemProperty -Path $p -Name DriverDesc -ErrorAction SilentlyContinue).DriverDesc; if ($d -match 'NVIDIA') { New-ItemProperty -Path $p -Name 'PowerMizerEnable' -Value 1 -PropertyType DWord -Force | Out-Null; New-ItemProperty -Path $p -Name 'PerfLevelSrc' -Value 8738 -PropertyType DWord -Force | Out-Null; New-ItemProperty -Path $p -Name 'PowerMizerLevel' -Value 1 -PropertyType DWord -Force | Out-Null; New-ItemProperty -Path $p -Name 'PowerMizerLevelAC' -Value 1 -PropertyType DWord -Force | Out-Null } }",
+        "revertScript": "Get-ChildItem 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}' | Where-Object { $_.PSChildName -match '^[0-9]{4}$' } | ForEach-Object { $p = $_.PSPath; $d = (Get-ItemProperty -Path $p -Name DriverDesc -ErrorAction SilentlyContinue).DriverDesc; if ($d -match 'NVIDIA') { 'PowerMizerEnable','PerfLevelSrc','PowerMizerLevel','PowerMizerLevelAC' | ForEach-Object { Remove-ItemProperty -Path $p -Name $_ -ErrorAction SilentlyContinue } } }"
+      }
+    ]
+  },
+  {
+    "id": "amd-disable-ulps",
+    "name": { "fr": "AMD : désactiver ULPS", "en": "AMD: disable ULPS" },
+    "description": {
+      "fr": "Désactive ULPS (Ultra Low Power State) sur les GPU Radeon. ULPS peut provoquer du micro-stutter et des réveils de fréquence lents. Le désactiver stabilise les clocks (au prix d'un repos légèrement plus consommateur).",
+      "en": "Disables ULPS (Ultra Low Power State) on Radeon GPUs. ULPS can cause micro-stutter and slow clock wake-ups. Disabling it stabilises clocks (at a slightly higher idle draw)."
+    },
+    "tier": "Avance",
+    "category": "PerformanceMultimedia",
+    "risk": "Low",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Clocks GPU plus stables, moins de micro-stutter",
+    "sources": [ "AMD community", "MorePowerTool", "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "applicability": { "gpuVendors": [ "Amd" ] },
+    "priority": 55,
+    "operations": [
+      {
+        "type": "PowerShell",
+        "script": "Get-ChildItem 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}' | Where-Object { $_.PSChildName -match '^[0-9]{4}$' } | ForEach-Object { $p = $_.PSPath; $d = (Get-ItemProperty -Path $p -Name DriverDesc -ErrorAction SilentlyContinue).DriverDesc; if ($d -match 'AMD|Radeon') { Set-ItemProperty -Path $p -Name 'EnableUlps' -Value 0 -ErrorAction SilentlyContinue } }",
+        "revertScript": "Get-ChildItem 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}' | Where-Object { $_.PSChildName -match '^[0-9]{4}$' } | ForEach-Object { $p = $_.PSPath; $d = (Get-ItemProperty -Path $p -Name DriverDesc -ErrorAction SilentlyContinue).DriverDesc; if ($d -match 'AMD|Radeon') { Set-ItemProperty -Path $p -Name 'EnableUlps' -Value 1 -ErrorAction SilentlyContinue } }"
+      }
+    ]
+  }
+]

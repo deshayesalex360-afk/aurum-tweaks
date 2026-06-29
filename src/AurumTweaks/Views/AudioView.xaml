@@ -1,0 +1,114 @@
+<UserControl x:Class="AurumTweaks.Views.AudioView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Son" Style="{StaticResource Text.Display}"/>
+            <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"
+                       Text="Quand une application de communication (Discord, chat vocal d'un jeu, appel dans le navigateur) ouvre un flux audio, Windows baisse par défaut le volume de tout le reste — y compris le jeu. Cette page lit ce réglage réel (« atténuation des communications ») et permet la seule modification sûre et vérifiable : passer en « Ne rien faire » pour garder un volume de jeu constant, ou rétablir le défaut Windows. La modification est appliquée puis relue pour confirmer qu'elle a bien pris. Le mode exclusif, la fréquence d'échantillonnage, l'audio spatial et le volume par application ne se règlent que dans les panneaux de Windows : ils sont ouverts directement, jamais simulés."/>
+
+            <!-- Synthesis: current ducking + the honest recommendation + the two reversible writes + hand-offs -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Atténuation des communications" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+
+                    <WrapPanel Margin="0,12,0,0">
+                        <Border Style="{StaticResource MetricChip}">
+                            <StackPanel>
+                                <TextBlock Text="Réglage actuel" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                <TextBlock Text="{Binding DuckingDisplay}" Style="{StaticResource Text.Body}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChip}">
+                            <StackPanel>
+                                <TextBlock Text="Modèle de sons" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                <TextBlock Text="{Binding SchemeDisplay}" Style="{StaticResource Text.Body}"/>
+                            </StackPanel>
+                        </Border>
+                    </WrapPanel>
+
+                    <!-- Verdict line: colored dot mirrors the honest tri-state used across the app -->
+                    <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                        <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,2,8,0"
+                                 Fill="{StaticResource Brush.Warning}"
+                                 Visibility="{Binding VerdictWarn, Converter={StaticResource BoolToVisibility}}"/>
+                        <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,2,8,0"
+                                 Fill="{StaticResource Brush.Success}"
+                                 Visibility="{Binding VerdictOk, Converter={StaticResource BoolToVisibility}}"/>
+                        <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,2,8,0"
+                                 Fill="{StaticResource Brush.Text.Muted}"
+                                 Visibility="{Binding VerdictInfo, Converter={StaticResource BoolToVisibility}}"/>
+                        <TextBlock Text="{Binding Headline}" Style="{StaticResource Text.Secondary}"
+                                   FontWeight="SemiBold" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding Detail}" Style="{StaticResource Text.Muted}"
+                               Margin="0,6,0,0" TextWrapping="Wrap"/>
+
+                    <!-- The two reversible, verified writes (each disables itself when it would be a no-op, via CanExecute) -->
+                    <WrapPanel Margin="0,14,0,0">
+                        <Button Content="Actualiser" Style="{StaticResource Button.Secondary}"
+                                Command="{Binding RefreshCommand}"/>
+                        <Button Content="Appliquer « Ne rien faire »" Style="{StaticResource Button.Primary}" Margin="10,0,0,0"
+                                Command="{Binding ApplyRecommendedCommand}"/>
+                        <Button Content="Rétablir le défaut Windows (80 %)" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding RestoreDefaultCommand}"/>
+                    </WrapPanel>
+
+                    <!-- Honest hand-offs: exclusive mode / sample rate / spatial / per-app volume live in Windows' panels -->
+                    <WrapPanel Margin="0,10,0,0">
+                        <Button Content="Panneau Son (mmsys.cpl)" Style="{StaticResource Button.Secondary}"
+                                Command="{Binding OpenSoundPanelCommand}"/>
+                        <Button Content="Paramètres de son" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding OpenSoundSettingsCommand}"/>
+                        <Button Content="Volume des applications" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding OpenAppVolumeCommand}"/>
+                        <Button Content="Copier le rapport" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding CopyReportCommand}"
+                                ToolTip="Copie le réglage d'atténuation, le modèle de sons et l'inventaire des périphériques audio dans le presse-papiers — prêt à coller sur un forum ou un ticket. Activé après lecture."/>
+                    </WrapPanel>
+
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Read-only audio device inventory (WMI Win32_SoundDevice) -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="Périphériques audio" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,8,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding HasDevices, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
+                               Text="Aucun périphérique audio listé par Windows. Utilise « Actualiser » ou ouvre le panneau Son."/>
+
+                    <ItemsControl ItemsSource="{Binding Devices}" Margin="0,12,0,0"
+                                  Visibility="{Binding HasDevices, Converter={StaticResource BoolToVisibility}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card.Compact}" Margin="0,5">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding NameDisplay}" Style="{StaticResource Text.Body}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                        <WrapPanel Margin="0,8,0,0">
+                                            <Border Style="{StaticResource MetricChip}">
+                                                <StackPanel>
+                                                    <TextBlock Text="Fabricant" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                                    <TextBlock Text="{Binding ManufacturerDisplay}" Style="{StaticResource Text.Body}"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Style="{StaticResource MetricChip}">
+                                                <StackPanel>
+                                                    <TextBlock Text="État" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                                    <TextBlock Text="{Binding StatusDisplay}" Style="{StaticResource Text.Body}"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

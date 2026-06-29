@@ -1,0 +1,158 @@
+<UserControl x:Class="AurumTweaks.Views.GamingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Gaming" Style="{StaticResource Text.Display}"/>
+            <TextBlock Text="Game Mode, optimisation réseau, tweaks par jeu."
+                       Style="{StaticResource Text.Secondary}" Margin="0,4,0,20"/>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Style="{StaticResource Card}" Margin="0,0,8,0">
+                    <StackPanel>
+                        <TextBlock Text="Aurum Game Mode" Style="{StaticResource Text.H3}"/>
+                        <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,8,0,0" TextWrapping="Wrap"
+                                   Text="Le gros du Game Mode — plan d'alimentation hautes perfs, latence d'entrée, planification GPU matérielle, services en veille — est livré en tweaks réversibles, avec point de restauration. Applique-les depuis l'onglet Tweaks (ou le set recommandé du tableau de bord), et active le Game Mode natif de Windows."/>
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <Button Content="Voir les tweaks gaming" Style="{StaticResource Button.Primary}"
+                                    Command="{Binding GoToTweaksCommand}"/>
+                            <Button Content="Game Mode Windows" Style="{StaticResource Button.Secondary}"
+                                    Margin="10,0,0,0" Command="{Binding OpenWindowsGameModeCommand}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Style="{StaticResource Card.Gold}" Margin="8,0,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Optimisation réseau" Style="{StaticResource Text.H3}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <TextBox Width="180" Text="{Binding NetworkTarget, UpdateSourceTrigger=PropertyChanged}"
+                                     Background="{StaticResource Brush.Bg.Elevated}"
+                                     Foreground="{StaticResource Brush.Text.Primary}"
+                                     BorderBrush="{StaticResource Brush.Border.Default}"
+                                     Padding="8,4" Margin="0,0,8,0"/>
+                            <Button Content="Mesurer" Style="{StaticResource Button.Primary}" Command="{Binding MeasureNetworkCommand}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <TextBlock Text="Ping " Style="{StaticResource Text.Muted}"/>
+                            <TextBlock Text="{Binding LastRoute.PingMs, StringFormat={}{0:F1} ms, FallbackValue=—}" Style="{StaticResource Text.Gold}" Margin="0,0,16,0"/>
+                            <TextBlock Text="Jitter " Style="{StaticResource Text.Muted}"/>
+                            <TextBlock Text="{Binding LastRoute.JitterMs, StringFormat={}{0:F1} ms, FallbackValue=—}" Style="{StaticResource Text.Gold}" Margin="0,0,16,0"/>
+                            <TextBlock Text="Loss " Style="{StaticResource Text.Muted}"/>
+                            <TextBlock Text="{Binding LastRoute.PacketLossPct, StringFormat={}{0:F0}%, FallbackValue=—}" Style="{StaticResource Text.Gold}"/>
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding RouteQuality}" Style="{StaticResource Text.Secondary}"
+                                   Margin="0,8,0,0" TextWrapping="Wrap"
+                                   Visibility="{Binding RouteQuality, Converter={StaticResource StringNotEmptyToVisibility}}"/>
+
+                        <Button Content="Tracer la route" Style="{StaticResource Button.Secondary}" Margin="0,16,0,0"
+                                HorizontalAlignment="Left" Command="{Binding TraceRouteCommand}"/>
+                        <TextBlock Text="{Binding RouteStatus}" Style="{StaticResource Text.Muted}"
+                                   Margin="0,8,0,0" TextWrapping="Wrap"/>
+                        <ItemsControl ItemsSource="{Binding RouteHops}" Margin="0,6,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="28"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding Ttl}" Style="{StaticResource Text.Muted}"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding AddressDisplay}" Style="{StaticResource Text.Body}"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding RttDisplay}" Style="{StaticResource Text.Gold}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="Benchmark DNS" Style="{StaticResource Text.H3}"/>
+                    <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,8,0,0" TextWrapping="Wrap"
+                               Text="Mesure la latence réelle de résolution DNS vers des résolveurs publics (Cloudflare, Google, Quad9, OpenDNS, AdGuard) et les classe du plus rapide au plus lent. Un résolveur plus rapide accélère l'établissement des connexions (launchers, matchmaking, web). Le changement de DNS reste une étape manuelle — ouvre « Cartes réseau »."/>
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <Button Content="Lancer le benchmark" Style="{StaticResource Button.Primary}" Command="{Binding BenchmarkDnsCommand}"/>
+                        <Button Content="Cartes réseau" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0" Command="{Binding OpenNetworkAdaptersCommand}"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding DnsStatus}" Style="{StaticResource Text.Muted}" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding DnsComparison}" Style="{StaticResource Text.Gold}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                    <ItemsControl ItemsSource="{Binding DnsResults}" Margin="0,8,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="200"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="64"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Resolver.Name}" Style="{StaticResource Text.Body}"/>
+                                        <TextBlock Text="• actuel" Style="{StaticResource Text.Gold}" FontSize="11"
+                                                   Margin="8,0,0,0" VerticalAlignment="Center"
+                                                   Visibility="{Binding Resolver.IsCurrent, Converter={StaticResource BoolToVisibility}}"/>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{Binding Resolver.Address}" Style="{StaticResource Text.Muted}"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding ReliabilityDisplay}" Style="{StaticResource Text.Muted}" Margin="0,0,16,0"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding LatencyDisplay}" Style="{StaticResource Text.Gold}" HorizontalAlignment="Right"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Button Content="Copier le diagnostic réseau" Style="{StaticResource Button.Secondary}"
+                            Margin="0,14,0,0" HorizontalAlignment="Left"
+                            Command="{Binding CopyNetworkDiagnosticCommand}"
+                            ToolTip="Copie la latence + stabilité, la route tracée et le classement DNS mesurés dans le presse-papiers — prêt à coller sur Discord ou un forum. Activé dès qu'une mesure a été lancée."/>
+                    <TextBlock Text="{Binding DiagnosticStatus}" Style="{StaticResource Text.Muted}"
+                               Margin="0,8,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="Jeux détectés" Style="{StaticResource Text.H3}" Margin="0,24,0,12"/>
+            <Border Style="{StaticResource Card.Compact}">
+                <StackPanel>
+                    <Button Content="Re-scanner les launchers" Style="{StaticResource Button.Ghost}" Command="{Binding ScanCommand}" HorizontalAlignment="Left"/>
+                    <ItemsControl ItemsSource="{Binding Games}" Margin="0,8,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card.Compact}" Margin="0,4">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Body}"/>
+                                            <TextBlock Style="{StaticResource Text.Muted}">
+                                                <Run Text="{Binding Platform, Mode=OneWay}"/>
+                                                <Run Text=" ·"/>
+                                                <Run Text="{Binding InstallDirectory, Mode=OneWay}"/>
+                                            </TextBlock>
+                                        </StackPanel>
+                                        <Border Grid.Column="1" Style="{StaticResource Badge.Extreme}"
+                                                Visibility="{Binding HasAntiCheat, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="{Binding AntiCheatName}" FontSize="10" FontWeight="Bold"
+                                                       Foreground="{StaticResource Brush.Danger}"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

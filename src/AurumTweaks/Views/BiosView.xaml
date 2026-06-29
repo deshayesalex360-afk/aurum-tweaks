@@ -1,0 +1,367 @@
+<UserControl x:Class="AurumTweaks.Views.BiosView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <!-- Header -->
+            <StackPanel Margin="0,0,0,20">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="BIOS" Style="{StaticResource Text.Display}"/>
+                    <Border Style="{StaticResource Badge.Gold}" Margin="16,12,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="LE PLUS GROS GAIN" FontSize="11" FontWeight="Bold"
+                                   Foreground="{StaticResource Brush.Gold.Bright}"/>
+                    </Border>
+                </StackPanel>
+                <TextBlock Text="Scan de ta carte mère et de tout le PC, puis recommandations BIOS adaptées à TON matériel — classées par priorité."
+                           Style="{StaticResource Text.Secondary}" Margin="0,4,0,0"/>
+            </StackPanel>
+
+            <!-- Scanning indicator -->
+            <Border Style="{StaticResource Card}" Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="Scan du matériel en cours…" Style="{StaticResource Text.Secondary}"/>
+            </Border>
+
+            <!-- Personalized profile + counts -->
+            <Border Style="{StaticResource Card.Gold}">
+                <StackPanel>
+                    <TextBlock Text="PROFIL DÉTECTÉ" Style="{StaticResource Text.Label}"/>
+                    <TextBlock Text="{Binding Report.PlatformSummary}" Style="{StaticResource Text.H3}"
+                               Margin="0,4,0,12" TextWrapping="Wrap"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Border Background="{StaticResource Brush.Warning}" CornerRadius="4" Padding="10,4" Margin="0,0,8,0">
+                            <TextBlock Foreground="#0A0A0A" FontWeight="Bold" FontSize="12"
+                                       Text="{Binding Report.ActionNeededCount, StringFormat={}{0} à changer}"/>
+                        </Border>
+                        <Border Background="{StaticResource Brush.Info}" CornerRadius="4" Padding="10,4" Margin="0,0,8,0">
+                            <TextBlock Foreground="#0A0A0A" FontWeight="Bold" FontSize="12"
+                                       Text="{Binding Report.VerifyCount, StringFormat={}{0} à vérifier}"/>
+                        </Border>
+                        <Border Background="{StaticResource Brush.Success}" CornerRadius="4" Padding="10,4">
+                            <TextBlock Foreground="#0A0A0A" FontWeight="Bold" FontSize="12"
+                                       Text="{Binding Report.OptimalCount, StringFormat={}{0} déjà OK}"/>
+                        </Border>
+                        <Button Content="↻ Re-scanner" Command="{Binding RefreshHardwareCommand}"
+                                Margin="16,0,0,0" Padding="10,4" VerticalAlignment="Center"
+                                Background="{StaticResource Brush.Bg.Elevated}"
+                                Foreground="{StaticResource Brush.Text.Primary}"
+                                BorderBrush="{StaticResource Brush.Border.Default}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Detailed hardware scan -->
+            <TextBlock Text="Scan matériel détaillé" Style="{StaticResource Text.H3}" Margin="0,20,0,12"/>
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="CARTE MÈRE" Style="{StaticResource Text.Label}"/>
+                            <TextBlock Text="{Binding HardwareInfo.MotherboardModel}" Style="{StaticResource Text.H3}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding HardwareInfo.MotherboardManufacturer}" Style="{StaticResource Text.Muted}"/>
+                            <TextBlock Text="{Binding HardwareInfo.ChipsetName, StringFormat=Chipset : {0}}" Style="{StaticResource Text.Muted}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="CPU" Style="{StaticResource Text.Label}"/>
+                            <TextBlock Text="{Binding HardwareInfo.CpuName}" Style="{StaticResource Text.H3}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding HardwareInfo.DetectedFamily}" Style="{StaticResource Text.Muted}"/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding HardwareInfo.CpuCores, StringFormat={}{0}C}" Style="{StaticResource Text.Muted}"/>
+                                <TextBlock Text="{Binding HardwareInfo.CpuThreads, StringFormat={}/{0}T}" Style="{StaticResource Text.Muted}" Margin="2,0,0,0"/>
+                                <TextBlock Text="{Binding HardwareInfo.CpuMaxThreads, StringFormat={}· SMT off ({0} poss.)}"
+                                           Style="{StaticResource Text.Muted}" Foreground="{StaticResource Brush.Warning}" Margin="6,0,0,0"
+                                           Visibility="{Binding HardwareInfo.SmtCapableButOff, Converter={StaticResource BoolToVisibility}}"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="BIOS / FIRMWARE" Style="{StaticResource Text.Label}"/>
+                            <TextBlock Text="{Binding HardwareInfo.DetectedBiosVendor}" Style="{StaticResource Text.H3}" Margin="0,4,0,0"/>
+                            <TextBlock Text="{Binding HardwareInfo.BiosVersion}" Style="{StaticResource Text.Muted}" TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding HardwareInfo.BiosReleaseDate, StringFormat=Daté de {0:MMM yyyy}}" Style="{StaticResource Text.Muted}"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Height="1" Background="{StaticResource Brush.Border.Subtle}" Margin="0,16"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="MÉMOIRE" Style="{StaticResource Text.Label}"/>
+                            <TextBlock Text="{Binding HardwareInfo.TotalRamGb, StringFormat={}{0:0} GB}" Style="{StaticResource Text.H3}" Margin="0,4,0,0"/>
+                            <TextBlock Text="{Binding HardwareInfo.MemoryChannelSummary}" Style="{StaticResource Text.Muted}" TextWrapping="Wrap"/>
+                            <ItemsControl ItemsSource="{Binding HardwareInfo.MemoryModules}" Margin="0,4,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Summary}" Style="{StaticResource Text.Muted}" FontSize="11" TextWrapping="Wrap"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="STOCKAGE" Style="{StaticResource Text.Label}"/>
+                            <ItemsControl ItemsSource="{Binding HardwareInfo.StorageDevices}" Margin="0,4,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Summary}" Style="{StaticResource Text.Muted}" FontSize="11" TextWrapping="Wrap"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="AFFICHAGE" Style="{StaticResource Text.Label}"/>
+                            <TextBlock Text="{Binding HardwareInfo.PrimaryDisplay.Summary}" Style="{StaticResource Text.H3}" Margin="0,4,0,0"/>
+                            <TextBlock Text="{Binding HardwareInfo.MaxRefreshRateHz, StringFormat=Max {0} Hz}" Style="{StaticResource Text.Muted}"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Border Height="1" Background="{StaticResource Brush.Border.Subtle}" Margin="0,16"/>
+
+                    <!-- Platform flags (tri-state) -->
+                    <TextBlock Text="ÉTAT PLATEFORME (lu depuis Windows)" Style="{StaticResource Text.Label}" Margin="0,0,0,8"/>
+                    <WrapPanel>
+                        <Border Background="{StaticResource Brush.Bg.Elevated}" CornerRadius="4" Padding="10,5" Margin="0,0,8,8">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="TPM : " Style="{StaticResource Text.Muted}"/>
+                                <TextBlock Text="{Binding HardwareInfo.TpmStatus}" Style="{StaticResource Text.Mono}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Background="{StaticResource Brush.Bg.Elevated}" CornerRadius="4" Padding="10,5" Margin="0,0,8,8">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Secure Boot : " Style="{StaticResource Text.Muted}"/>
+                                <TextBlock Text="{Binding HardwareInfo.SecureBootStatus}" Style="{StaticResource Text.Mono}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Background="{StaticResource Brush.Bg.Elevated}" CornerRadius="4" Padding="10,5" Margin="0,0,8,8">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Resizable BAR : " Style="{StaticResource Text.Muted}"/>
+                                <TextBlock Text="{Binding HardwareInfo.ReBarStatus}" Style="{StaticResource Text.Mono}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Background="{StaticResource Brush.Bg.Elevated}" CornerRadius="4" Padding="10,5" Margin="0,0,8,8">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Virtualisation : " Style="{StaticResource Text.Muted}"/>
+                                <TextBlock Text="{Binding HardwareInfo.VirtualizationStatus}" Style="{StaticResource Text.Mono}"/>
+                            </StackPanel>
+                        </Border>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Apply from Windows -->
+            <StackPanel Orientation="Horizontal" Margin="0,20,0,12">
+                <TextBlock Text="Appliquer depuis Windows" Style="{StaticResource Text.H3}"/>
+                <Border Style="{StaticResource Badge.Gold}" Margin="12,4,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="PAR TOUT MOYEN SÛR" FontSize="10" FontWeight="Bold"
+                               Foreground="{StaticResource Brush.Gold.Bright}"/>
+                </Border>
+            </StackPanel>
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="{Binding ApplyCapabilities.Summary}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap"/>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="↻ Redémarrer dans le BIOS / UEFI"
+                                Command="{Binding RebootToFirmwareCommand}"
+                                IsEnabled="{Binding ApplyCapabilities.CanRebootToFirmware}"
+                                Padding="14,8" Margin="0,0,10,0"
+                                Background="{StaticResource Brush.Gold}"
+                                Foreground="{StaticResource Brush.Text.OnGold}"
+                                BorderThickness="0" FontWeight="SemiBold"/>
+                        <Button Content="Annuler le redémarrage"
+                                Command="{Binding CancelRebootCommand}"
+                                Padding="14,8"
+                                Background="{StaticResource Brush.Bg.Elevated}"
+                                Foreground="{StaticResource Brush.Text.Primary}"
+                                BorderBrush="{StaticResource Brush.Border.Default}"/>
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding ApplyStatus}" Style="{StaticResource Text.Gold}" Margin="0,10,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding ApplyStatus, Converter={StaticResource StringNotEmptyToVisibility}}"/>
+
+                    <!-- Honest notes -->
+                    <ItemsControl ItemsSource="{Binding ApplyCapabilities.Notes}" Margin="0,12,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="0,2">
+                                    <TextBlock Text="• " Style="{StaticResource Text.Muted}"/>
+                                    <TextBlock Text="{Binding}" Style="{StaticResource Text.Muted}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- OEM vendor WMI: live BIOS settings (Dell/HP/Lenovo) -->
+                    <StackPanel Visibility="{Binding ApplyCapabilities.VendorWmiAvailable, Converter={StaticResource BoolToVisibility}}">
+                        <Border Height="1" Background="{StaticResource Brush.Border.Subtle}" Margin="0,16"/>
+                        <TextBlock Style="{StaticResource Text.Label}"
+                                   Text="{Binding ApplyCapabilities.VendorName, StringFormat=RÉGLAGES BIOS LUS EN DIRECT ({0})}"/>
+                        <ItemsControl ItemsSource="{Binding VendorSettings}" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,2">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding Name}" Style="{StaticResource Text.Muted}" FontSize="11" TextWrapping="Wrap"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding CurrentValue}" Style="{StaticResource Text.Mono}" FontSize="11" Margin="12,0,0,0"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Tier selector -->
+            <StackPanel Orientation="Horizontal" Margin="0,20,0,12">
+                <TextBlock Text="Niveau de recommandation : " VerticalAlignment="Center"
+                           Style="{StaticResource Text.Secondary}" Margin="0,0,12,0"/>
+                <ComboBox Width="180" SelectedItem="{Binding SelectedTier}"
+                          Background="{StaticResource Brush.Bg.Elevated}"
+                          Foreground="{StaticResource Brush.Text.Primary}">
+                    <ComboBox.ItemsSource>
+                        <x:Array Type="{x:Type sys:Object}" xmlns:sys="clr-namespace:System;assembly=mscorlib">
+                            <x:Static Member="models:TweakTier.Tranquille" xmlns:models="clr-namespace:AurumTweaks.Models"/>
+                            <x:Static Member="models:TweakTier.Avance" xmlns:models="clr-namespace:AurumTweaks.Models"/>
+                            <x:Static Member="models:TweakTier.Extreme" xmlns:models="clr-namespace:AurumTweaks.Models"/>
+                        </x:Array>
+                    </ComboBox.ItemsSource>
+                </ComboBox>
+            </StackPanel>
+
+            <!-- Personalized BIOS recommendations -->
+            <Grid Margin="0,0,0,4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="Recommandations BIOS pour ton PC" Style="{StaticResource Text.H3}" VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Content="Copier le rapport" Style="{StaticResource Button.Secondary}"
+                            Command="{Binding CopyReportCommand}" Margin="0,0,8,0"
+                            ToolTip="Copie un rapport texte lisible (profil détecté, réglages à changer / à vérifier / déjà OK, où les trouver dans ton BIOS) à coller sur un forum ou Discord."/>
+                    <Button Content="Exporter…" Style="{StaticResource Button.Tertiary}"
+                            Command="{Binding ExportReportCommand}"
+                            ToolTip="Enregistre le rapport BIOS en fichier texte (.txt) lisible."/>
+                </StackPanel>
+            </Grid>
+            <TextBlock Text="{Binding ReportStatus}" Style="{StaticResource Text.Muted}" Margin="0,0,0,12" TextWrapping="Wrap"
+                       Visibility="{Binding ReportStatus, Converter={StaticResource StringNotEmptyToVisibility}}"/>
+            <ItemsControl ItemsSource="{Binding Recommendations}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Card}">
+                            <StackPanel>
+                                <!-- Title row: name + state chip + category + critical flag -->
+                                <StackPanel Orientation="Horizontal">
+                                    <Border CornerRadius="4" Padding="8,3" VerticalAlignment="Center" Margin="0,0,10,0">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="{StaticResource Brush.Info}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding State}" Value="ActionNeeded">
+                                                        <Setter Property="Background" Value="{StaticResource Brush.Warning}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding State}" Value="Optimal">
+                                                        <Setter Property="Background" Value="{StaticResource Brush.Success}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding StateLabel}" FontSize="10" FontWeight="Bold" Foreground="#0A0A0A"/>
+                                    </Border>
+                                    <TextBlock Text="{Binding Name}" Style="{StaticResource Text.H3}" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                                    <Border Style="{StaticResource Badge.Gold}" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Category}" FontSize="10" FontWeight="Bold"
+                                                   Foreground="{StaticResource Brush.Gold.Bright}"/>
+                                    </Border>
+                                    <Border Background="{StaticResource Brush.Danger}" CornerRadius="4" Padding="8,3" Margin="8,0,0,0" VerticalAlignment="Center"
+                                            Visibility="{Binding IsCritical, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="⚠ SÉCURITÉ HARDWARE" FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                    </Border>
+                                </StackPanel>
+
+                                <!-- Detected state (only when we read something back) -->
+                                <Border Background="{StaticResource Brush.Bg.Elevated}" CornerRadius="6" Padding="12,8" Margin="0,10,0,0"
+                                        Visibility="{Binding DetectedStateText, Converter={StaticResource StringNotEmptyToVisibility}}">
+                                    <StackPanel>
+                                        <TextBlock Text="DÉTECTÉ SUR TON PC" Style="{StaticResource Text.Label}"/>
+                                        <TextBlock Text="{Binding DetectedStateText}" Style="{StaticResource Text.Secondary}" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <TextBlock Text="{Binding Description}" Style="{StaticResource Text.Secondary}" Margin="0,10,0,12" TextWrapping="Wrap"/>
+
+                                <!-- Recommendation for selected tier -->
+                                <TextBlock Text="RECOMMANDATION" Style="{StaticResource Text.Label}"/>
+                                <TextBlock Text="{Binding TierRecommendation}" Style="{StaticResource Text.Gold}" Margin="0,2,0,12" TextWrapping="Wrap"/>
+
+                                <!-- Where to find it on this board -->
+                                <TextBlock Text="OÙ LE TROUVER DANS TON BIOS" Style="{StaticResource Text.Label}"/>
+                                <TextBlock Text="{Binding VendorPath}" Style="{StaticResource Text.Mono}" Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding VendorAlias, StringFormat=Alias : {0}}" Style="{StaticResource Text.Muted}" Margin="0,2,0,12"
+                                           Visibility="{Binding VendorAlias, Converter={StaticResource StringNotEmptyToVisibility}}"/>
+
+                                <TextBlock Text="GAIN ATTENDU" Style="{StaticResource Text.Label}"/>
+                                <TextBlock Text="{Binding ExpectedGain}" Style="{StaticResource Text.Gold}" Margin="0,2,0,12" TextWrapping="Wrap"/>
+
+                                <TextBlock Text="OUTIL DE VALIDATION" Style="{StaticResource Text.Label}"
+                                           Visibility="{Binding ValidationTool, Converter={StaticResource StringNotEmptyToVisibility}}"/>
+                                <TextBlock Text="{Binding ValidationTool}" Style="{StaticResource Text.Mono}" Margin="0,2,0,0" TextWrapping="Wrap"
+                                           Visibility="{Binding ValidationTool, Converter={StaticResource StringNotEmptyToVisibility}}"/>
+
+                                <TextBlock Text="{Binding Notes}" Margin="0,12,0,0" TextWrapping="Wrap"
+                                           Foreground="{StaticResource Brush.Warning}"
+                                           Visibility="{Binding Notes, Converter={StaticResource StringNotEmptyToVisibility}}"/>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- RAM Calculator -->
+            <TextBlock Text="Calculateur RAM (presets validés)" Style="{StaticResource Text.H3}" Margin="0,20,0,12"/>
+            <ItemsControl ItemsSource="{Binding RamKits}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Card.Compact}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Name}" Style="{StaticResource Text.H3}"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                    <TextBlock Text="Type : " Style="{StaticResource Text.Muted}"/>
+                                    <TextBlock Text="{Binding RamType}" Style="{StaticResource Text.Mono}" Margin="0,0,16,0"/>
+                                    <TextBlock Text="Fréq : " Style="{StaticResource Text.Muted}"/>
+                                    <TextBlock Text="{Binding FrequencyMTs, StringFormat={}{0} MT/s}" Style="{StaticResource Text.Mono}" Margin="0,0,16,0"/>
+                                    <TextBlock Text="VDIMM : " Style="{StaticResource Text.Muted}"/>
+                                    <TextBlock Text="{Binding Vdimm}" Style="{StaticResource Text.Mono}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                    <TextBlock Text="Primary : " Style="{StaticResource Text.Muted}"/>
+                                    <TextBlock Style="{StaticResource Text.Mono}">
+                                        <Run Text="{Binding CL, Mode=OneWay}"/>-<Run Text="{Binding tRCD, Mode=OneWay}"/>-<Run Text="{Binding tRP, Mode=OneWay}"/>-<Run Text="{Binding tRAS, Mode=OneWay}"/>
+                                    </TextBlock>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                    <TextBlock Text="Secondary : " Style="{StaticResource Text.Muted}"/>
+                                    <TextBlock Style="{StaticResource Text.Mono}">
+                                        tRFC <Run Text="{Binding tRFC, Mode=OneWay}"/> · tRRDS <Run Text="{Binding tRRDS, Mode=OneWay}"/> · tFAW <Run Text="{Binding tFAW, Mode=OneWay}"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,162 @@
+<UserControl x:Class="AurumTweaks.Views.DevicesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Périphériques" Style="{StaticResource Text.Display}"/>
+            <TextBlock Text="Réglage des périphériques d'entrée (façon HIDUSBF) : souris / clavier / manettes connectés, logiciel constructeur qui pilote le polling rate, et accélération souris à neutraliser pour le gaming."
+                       Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"/>
+
+            <!-- Scan summary -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Scan en cours…" Style="{StaticResource Text.Secondary}"
+                               Visibility="{Binding IsScanning, Converter={StaticResource BoolToVisibility}}"/>
+                    <TextBlock Text="{Binding Report.Summary}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap"/>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Border Background="{StaticResource Brush.Bg.Elevated}" CornerRadius="4" Padding="10,4" Margin="0,0,8,0">
+                            <TextBlock Foreground="{StaticResource Brush.Text.Primary}" FontWeight="Bold" FontSize="12"
+                                       Text="{Binding Report.MouseCount, StringFormat={}{0} souris}"/>
+                        </Border>
+                        <Border Background="{StaticResource Brush.Bg.Elevated}" CornerRadius="4" Padding="10,4" Margin="0,0,8,0">
+                            <TextBlock Foreground="{StaticResource Brush.Text.Primary}" FontWeight="Bold" FontSize="12"
+                                       Text="{Binding Report.KeyboardCount, StringFormat={}{0} clavier(s)}"/>
+                        </Border>
+                    </StackPanel>
+
+                    <WrapPanel Margin="0,12,0,0">
+                        <Button Content="↻ Re-scanner" Command="{Binding ScanCommand}" Style="{StaticResource Button.Secondary}" Margin="0,0,8,8"/>
+                        <Button Content="Paramètres de la souris" Command="{Binding OpenMouseSettingsCommand}" Style="{StaticResource Button.Secondary}" Margin="0,0,8,8"/>
+                        <Button Content="Gestionnaire de périphériques" Command="{Binding OpenDeviceManagerCommand}" Style="{StaticResource Button.Secondary}" Margin="0,0,8,8"/>
+                        <Button Content="Copier le rapport" Command="{Binding CopyReportCommand}" Style="{StaticResource Button.Secondary}" Margin="0,0,8,8"
+                                ToolTip="Copie l'inventaire d'entrée (périphériques, bus, logiciels constructeur, accélération souris, conseils polling rate) en texte — lecture seule, jamais envoyé. Aucun chiffre de Hz inventé."/>
+                    </WrapPanel>
+
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Mouse acceleration (the one thing we CAN read/flag) -->
+            <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                <StackPanel>
+                    <TextBlock Text="Accélération de la souris" Style="{StaticResource Text.H3}"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Border CornerRadius="4" Padding="8,3" Margin="0,0,10,0" VerticalAlignment="Top">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Background" Value="{StaticResource Brush.Success}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Report.MouseAccelerationOn}" Value="True">
+                                            <Setter Property="Background" Value="{StaticResource Brush.Warning}"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock FontSize="10" FontWeight="Bold" Foreground="#0A0A0A">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="OFF · OK"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Report.MouseAccelerationOn}" Value="True">
+                                                <Setter Property="Text" Value="ON · À DÉSACTIVER"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Border>
+                        <TextBlock Text="{Binding Report.MouseAccelerationText}" Style="{StaticResource Text.Body}"
+                                   TextWrapping="Wrap" MaxWidth="760" HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Detected vendor software -->
+            <Border Style="{StaticResource Card.Gold}" Margin="0,12,0,0"
+                    Visibility="{Binding Report.HasDetectedSoftware, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="Logiciel constructeur détecté" Style="{StaticResource Text.Gold}"/>
+                    <TextBlock Text="Le vrai polling rate, le DPI et l'Angle Snapping se règlent ici — c'est plus sûr que de forcer le pilote USB."
+                               Style="{StaticResource Text.Secondary}" Margin="0,4,0,10" TextWrapping="Wrap"/>
+                    <ItemsControl ItemsSource="{Binding DetectedSoftware}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Badge.Gold}" Margin="0,0,8,8" Padding="10,4">
+                                    <TextBlock Text="{Binding}" FontSize="12" FontWeight="Bold" Foreground="{StaticResource Brush.Gold.Bright}"/>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Connected devices -->
+            <TextBlock Text="Périphériques connectés" Style="{StaticResource Text.H3}" Margin="0,20,0,12"/>
+            <ItemsControl ItemsSource="{Binding Devices}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Card.Compact}">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Border CornerRadius="4" Padding="8,3" VerticalAlignment="Center" Margin="0,0,10,0">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="{StaticResource Brush.Info}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding DeviceType}" Value="Clavier">
+                                                        <Setter Property="Background" Value="{StaticResource Brush.Gold.Deep}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <TextBlock Text="{Binding DeviceType}" FontSize="10" FontWeight="Bold" Foreground="White"/>
+                                    </Border>
+                                    <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Body}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,10,0"/>
+                                    <Border Style="{StaticResource Badge.Subtle}" VerticalAlignment="Center" Margin="0,0,8,0">
+                                        <TextBlock Text="{Binding Bus}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Brush.Text.Muted}"/>
+                                    </Border>
+                                    <Border Style="{StaticResource Badge.Subtle}" VerticalAlignment="Center"
+                                            Visibility="{Binding IsWireless, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="sans-fil" FontSize="10" FontWeight="Bold" Foreground="{StaticResource Brush.Text.Muted}"/>
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock Text="{Binding Manufacturer}" Style="{StaticResource Text.Muted}" FontSize="11" Margin="0,6,0,0"
+                                           Visibility="{Binding Manufacturer, Converter={StaticResource StringNotEmptyToVisibility}}"/>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Polling-rate guidance -->
+            <TextBlock Text="Polling rate &amp; latence d'entrée" Style="{StaticResource Text.H3}" Margin="0,20,0,12"/>
+            <ItemsControl ItemsSource="{Binding Guidance}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Card.Compact}">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="6" Height="6" Fill="{StaticResource Brush.Gold}" VerticalAlignment="Top" Margin="0,7,12,0"/>
+                                <TextBlock Text="{Binding}" Style="{StaticResource Text.Body}" TextWrapping="Wrap" MaxWidth="900" HorizontalAlignment="Left"/>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- HIDUSBF -->
+            <Border Style="{StaticResource Card}" Margin="0,12,0,0">
+                <StackPanel>
+                    <TextBlock Text="HIDUSBF (forcer le polling rate)" Style="{StaticResource Text.H3}"/>
+                    <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,8,0,12" TextWrapping="Wrap"
+                               Text="Outil de référence (Sweetlow) pour forcer le polling rate d'un périphérique qui ne l'expose pas dans son logiciel. Il installe un pilote NON signé : à utiliser en connaissance de cause, et jamais avec un anti-cheat strict (Vanguard, Faceit, EAC)."/>
+                    <Button Content="Télécharger HIDUSBF" Style="{StaticResource Button.Secondary}" Command="{Binding OpenHidUsbfCommand}" HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

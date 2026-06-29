@@ -1,0 +1,90 @@
+[
+  {
+    "id": "bcdedit-useplatformclock-off",
+    "name": { "fr": "BCDEdit : forcer le timer TSC (HPET off)", "en": "BCDEdit: force TSC timer (HPET off)" },
+    "description": {
+      "fr": "Force Windows à utiliser le timer invariant TSC du CPU plutôt que le HPET, plus lent. Réduit la latence DPC et lisse les frametimes sur la plupart des plateformes modernes.",
+      "en": "Forces Windows to use the CPU's invariant TSC timer instead of the slower HPET. Lowers DPC latency and smooths frametimes on most modern platforms."
+    },
+    "tier": "Extreme",
+    "category": "Advanced",
+    "risk": "Medium",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Latence DPC réduite, 1% low plus stables",
+    "sources": [ "FR33THY", "Calypto", "BoringBoredom" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 40,
+    "warnings": { "fr": "Sur de rares plateformes au TSC instable, peut causer des saccades — réversible immédiatement. Teste après application." },
+    "operations": [
+      {
+        "type": "Bcdedit",
+        "script": "/set useplatformclock false",
+        "revertScript": "/deletevalue useplatformclock"
+      }
+    ]
+  },
+  {
+    "id": "disable-cpu-idle-desktop",
+    "name": { "fr": "Désactiver les C-states CPU (idle off, desktop)", "en": "Disable CPU idle C-states (desktop)" },
+    "description": {
+      "fr": "Empêche le CPU d'entrer dans ses états de veille (C-states) via IDLEDISABLE=1. Supprime la latence de sortie de veille des cœurs — gain de réactivité sur les charges en rafale. Réservé aux PC de bureau.",
+      "en": "Stops the CPU from entering idle sleep states (C-states) via IDLEDISABLE=1. Removes core wake-up latency — snappier on bursty loads. Desktop only."
+    },
+    "tier": "Extreme",
+    "category": "PowerBoot",
+    "risk": "Medium",
+    "reversible": true,
+    "expectedImpact": "Latence de réveil cœur supprimée, frametimes plus plats",
+    "sources": [ "FR33THY", "BoringBoredom" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "applicability": { "desktopOnly": true },
+    "priority": 35,
+    "warnings": { "fr": "Augmente nettement la consommation et la température au repos. À NE PAS appliquer sur portable." },
+    "operations": [
+      {
+        "type": "PowerShell",
+        "script": "powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR IDLEDISABLE 1 ; powercfg -setactive SCHEME_CURRENT",
+        "revertScript": "powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR IDLEDISABLE 0 ; powercfg -setactive SCHEME_CURRENT"
+      }
+    ]
+  },
+  {
+    "id": "disable-spectre-meltdown-mitigations",
+    "name": { "fr": "Désactiver les mitigations Spectre/Meltdown", "en": "Disable Spectre/Meltdown mitigations" },
+    "description": {
+      "fr": "Désactive les contre-mesures logicielles Spectre/Meltdown (FeatureSettingsOverride=3). Récupère la perf CPU perdue par ces correctifs — gain notable surtout sur les CPU d'avant 2019. Réduit la protection contre une classe d'attaques par canal auxiliaire.",
+      "en": "Disables the Spectre/Meltdown software mitigations (FeatureSettingsOverride=3). Reclaims the CPU performance lost to these patches — notable mostly on pre-2019 CPUs. Reduces protection against a class of side-channel attacks."
+    },
+    "tier": "Extreme",
+    "category": "Security",
+    "risk": "High",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Gain CPU (surtout CPU anciens), I/O plus rapide",
+    "sources": [ "FR33THY", "Calypto", "Microsoft docs", "TechPowerUp benchmarks" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 30,
+    "warnings": { "fr": "Réduit la sécurité du système (attaques par canal auxiliaire). À éviter sur une machine professionnelle ou partagée. Sur un CPU récent, le gain est faible — pèse le pour/contre." },
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management",
+        "name": "FeatureSettingsOverride",
+        "valueType": "DWord",
+        "apply": "3",
+        "revert": "0"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management",
+        "name": "FeatureSettingsOverrideMask",
+        "valueType": "DWord",
+        "apply": "3",
+        "revert": "3"
+      }
+    ]
+  }
+]

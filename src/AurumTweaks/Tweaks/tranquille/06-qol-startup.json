@@ -1,0 +1,77 @@
+[
+  {
+    "id": "disable-startup-delay",
+    "name": { "fr": "Supprimer le délai de démarrage des apps", "en": "Remove startup app delay" },
+    "description": {
+      "fr": "Met StartupDelayInMSec à 0 : Windows arrête de retarder artificiellement le lancement de tes applications de démarrage. Bureau utilisable plus vite après le boot.",
+      "en": "Sets StartupDelayInMSec to 0: Windows stops artificially delaying your startup apps. Usable desktop sooner after boot."
+    },
+    "tier": "Tranquille",
+    "category": "PowerBoot",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Apps de démarrage prêtes plus tôt",
+    "sources": [ "Atlas OS", "marvingdt/opti-pc" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 55,
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKCU",
+        "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Serialize",
+        "name": "StartupDelayInMSec", "valueType": "DWord",
+        "apply": "0", "revert": null
+      }
+    ]
+  },
+  {
+    "id": "win11-classic-context-menu",
+    "name": { "fr": "Menu contextuel classique (Windows 11)", "en": "Classic context menu (Windows 11)" },
+    "description": {
+      "fr": "Restaure le menu clic-droit complet de Windows 10 sur Windows 11 (plus de « Afficher plus d'options »). L'explorateur redémarre pour appliquer.",
+      "en": "Restores the full Windows 10 right-click menu on Windows 11 (no more 'Show more options'). Explorer restarts to apply."
+    },
+    "tier": "Tranquille",
+    "category": "UIQualityOfLife",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Ergonomie : clic-droit complet sans clic supplémentaire",
+    "sources": [ "Atlas OS", "Tiny11", "marvingdt/opti-pc" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "windowsVersions": [ "11" ],
+    "applicability": { "requiresWin11": true },
+    "priority": 35,
+    "operations": [
+      {
+        "type": "Cmd",
+        "script": "reg add \"HKCU\\Software\\Classes\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\\InprocServer32\" /f /ve & taskkill /f /im explorer.exe & start explorer.exe",
+        "revertScript": "reg delete \"HKCU\\Software\\Classes\\CLSID\\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\" /f & taskkill /f /im explorer.exe & start explorer.exe"
+      }
+    ]
+  },
+  {
+    "id": "win11-disable-widgets",
+    "name": { "fr": "Désactiver les Widgets (Windows 11)", "en": "Disable Widgets (Windows 11)" },
+    "description": {
+      "fr": "Désactive le tableau de Widgets de Windows 11 (météo/actu) qui sollicite CPU, réseau et WebView2 en arrière-plan.",
+      "en": "Disables the Windows 11 Widgets board (weather/news) which uses background CPU, network and WebView2."
+    },
+    "tier": "Tranquille",
+    "category": "PerformanceMultimedia",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Moins de CPU/réseau idle, barre des tâches allégée",
+    "sources": [ "Atlas OS", "ShutUp10" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "windowsVersions": [ "11" ],
+    "applicability": { "requiresWin11": true },
+    "priority": 50,
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SOFTWARE\\Policies\\Microsoft\\Dsh",
+        "name": "AllowNewsAndInterests", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      }
+    ]
+  }
+]

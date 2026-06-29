@@ -1,0 +1,86 @@
+<UserControl x:Class="AurumTweaks.Views.SleepHibernationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Veille &amp; hibernation" Style="{StaticResource Text.Display}"/>
+            <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"
+                       Text="Gère l'hibernation de Windows et le « démarrage rapide ». L'hibernation réserve un fichier (hiberfil.sys) d'environ la taille de la RAM ; la désactiver récupère cet espace disque mais retire la mise en veille prolongée. Le démarrage rapide accélère légèrement l'allumage en réutilisant ce fichier, mais transforme l'arrêt en hibernation partielle — le désactiver donne un VRAI arrêt complet, utile en dual-boot ou pour forcer un rechargement propre des pilotes. Aucun gain de FPS promis : l'intérêt est l'espace disque et un arrêt réellement propre. Les états sont lus dans le registre (insensible à la langue de Windows) et relus après chaque changement."/>
+
+            <!-- Hibernation: driven through the real `powercfg /hibernate` so hiberfil.sys is genuinely created/removed -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Hibernation" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <TextBlock Text="État : " Style="{StaticResource Text.Secondary}"/>
+                        <TextBlock Text="{Binding HibernationState}" Style="{StaticResource Text.Secondary}" FontWeight="SemiBold"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0"
+                                Visibility="{Binding HasHiberfil, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="hiberfil.sys : " Style="{StaticResource Text.Muted}"/>
+                        <TextBlock Text="{Binding HiberfilDisplay}" Style="{StaticResource Text.Muted}" FontWeight="SemiBold"/>
+                        <TextBlock Text="  (espace récupérable en désactivant)" Style="{StaticResource Text.Muted}"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Activer l'hibernation" Style="{StaticResource Button.Primary}"
+                                IsEnabled="{Binding CanEnableHibernation}"
+                                Command="{Binding EnableHibernationCommand}"/>
+                        <Button Content="Désactiver (libérer l'espace)" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                IsEnabled="{Binding CanDisableHibernation}"
+                                Command="{Binding DisableHibernationCommand}"/>
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,10,0,0" TextWrapping="Wrap" FontSize="11"
+                               Text="« Désactiver » exécute powercfg /hibernate off : Windows supprime hiberfil.sys (espace disque récupéré) et la mise en veille prolongée n'est plus disponible. « Activer » la rétablit. Le démarrage rapide ci-dessous dépend de l'hibernation."/>
+                </StackPanel>
+            </Border>
+
+            <!-- Fast Startup: a real reversible registry write, honestly unavailable when hibernation is off -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="Démarrage rapide" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <TextBlock Text="État : " Style="{StaticResource Text.Secondary}"/>
+                        <TextBlock Text="{Binding FastStartupState}" Style="{StaticResource Text.Secondary}" FontWeight="SemiBold"/>
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,6,0,0" TextWrapping="Wrap" FontSize="11"
+                               Visibility="{Binding FastStartupUnavailable, Converter={StaticResource BoolToVisibility}}"
+                               Text="Indisponible tant que l'hibernation est désactivée : le démarrage rapide réutilise hiberfil.sys. Active l'hibernation ci-dessus pour pouvoir le régler."/>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Activer le démarrage rapide" Style="{StaticResource Button.Tertiary}"
+                                IsEnabled="{Binding CanEnableFastStartup}"
+                                Command="{Binding EnableFastStartupCommand}"/>
+                        <Button Content="Désactiver (arrêt complet)" Style="{StaticResource Button.Tertiary}" Margin="8,0,0,0"
+                                IsEnabled="{Binding CanDisableFastStartup}"
+                                Command="{Binding DisableFastStartupCommand}"/>
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,10,0,0" TextWrapping="Wrap" FontSize="11"
+                               Text="Désactiver le démarrage rapide donne un arrêt réellement complet : recommandé en dual-boot (libère le système de fichiers Windows) et pour résoudre certains soucis de pilotes/USB qui ne se réinitialisent pas à l'extinction. En contrepartie, l'allumage est légèrement plus lent. Un changement prend effet au prochain arrêt complet."/>
+                </StackPanel>
+            </Border>
+
+            <!-- Honest Windows-native hand-offs -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="Réglages Windows" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
+                               Text="Pour les délais de mise en veille de l'écran et du PC, et la case « Activer le démarrage rapide » de l'interface classique, ouvre les réglages natifs de Windows."/>
+                    <WrapPanel Margin="0,12,0,0">
+                        <Button Content="Actualiser" Style="{StaticResource Button.Secondary}"
+                                Command="{Binding RefreshCommand}"/>
+                        <Button Content="Alimentation et veille (Paramètres)" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding OpenPowerSettingsCommand}"/>
+                        <Button Content="Options d'alimentation (classique)" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding OpenPowerOptionsCommand}"/>
+                    </WrapPanel>
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,293 @@
+<UserControl x:Class="AurumTweaks.Views.StabilityView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <UserControl.Resources>
+        <!-- Scoped dark input styling (theme doesn't style TextBox; match Bench/Ram convention) -->
+        <Style x:Key="Stab.TextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource Brush.Bg.Elevated}"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Default}"/>
+            <Setter Property="CaretBrush" Value="{StaticResource Brush.Gold.Bright}"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="Stab.QuickBtn" TargetType="Button" BasedOn="{StaticResource Button.Tertiary}">
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+
+        <!-- A single metric chip (label on top, value below) -->
+        <Style x:Key="Stab.Chip" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Brush.Bg.Elevated}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Subtle}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="14,9"/>
+            <Setter Property="Margin" Value="0,0,8,8"/>
+            <Setter Property="MinWidth" Value="104"/>
+        </Style>
+        <Style x:Key="Stab.Chip.Label" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource Font.Body}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Muted}"/>
+            <Setter Property="Margin" Value="0,0,0,3"/>
+        </Style>
+        <Style x:Key="Stab.Chip.Value" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource Font.Mono}"/>
+            <Setter Property="FontSize" Value="19"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+
+            <!-- Header -->
+            <StackPanel Margin="0,0,0,4">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Stabilité RAM" Style="{StaticResource Text.Display}"/>
+                    <Border Style="{StaticResource Badge.Subtle}" Margin="14,14,0,0" VerticalAlignment="Center" Height="22">
+                        <TextBlock Text="TEST RAPIDE · SANS PILOTE NOYAU" FontSize="10" FontWeight="Bold"
+                                   Foreground="{StaticResource Brush.Text.Secondary}" VerticalAlignment="Center"/>
+                    </Border>
+                </StackPanel>
+                <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,0" TextWrapping="Wrap" MaxWidth="900" HorizontalAlignment="Left"
+                           Text="Écrit puis relit des motifs (inversions mobiles + test d'adressage) dans la RAM pour débusquer une instabilité grossière après un réglage de timings. Boucle naturelle avec la calculatrice de timings : on serre là-bas, on valide ici."/>
+            </StackPanel>
+
+            <!-- Status line -->
+            <TextBlock Text="{Binding StatusText}" Style="{StaticResource Text.Muted}" Margin="0,8,0,16" TextWrapping="Wrap" MaxWidth="900" HorizontalAlignment="Left"
+                       Visibility="{Binding StatusText, Converter={StaticResource StringNotEmptyToVisibility}}"/>
+
+            <!-- ===== Configuration ===== -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="CONFIGURATION" Style="{StaticResource Text.Label}" Margin="0,0,0,16"/>
+
+                    <!-- Size -->
+                    <TextBlock Text="Quantité à tester (Mo)" Style="{StaticResource Text.Label}" Margin="0,0,0,6"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox Style="{StaticResource Stab.TextBox}" Width="120" HorizontalAlignment="Left"
+                                 Text="{Binding SizeMb, UpdateSourceTrigger=PropertyChanged}"/>
+                        <ItemsControl ItemsSource="{Binding QuickSizesGb}" Margin="12,0,0,0" VerticalAlignment="Center">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource Stab.QuickBtn}"
+                                            Content="{Binding}" ContentStringFormat="{}{0} Go"
+                                            Command="{Binding DataContext.SetSizeGbCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                    <TextBlock Text="{Binding DetectionNote}" Style="{StaticResource Text.Muted}" Margin="0,8,0,0" TextWrapping="Wrap" MaxWidth="900" HorizontalAlignment="Left"
+                               Visibility="{Binding DetectionNote, Converter={StaticResource StringNotEmptyToVisibility}}"/>
+
+                    <!-- Passes + threads -->
+                    <Grid Margin="0,18,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="32"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="Passes" Style="{StaticResource Text.Label}" Margin="0,0,0,6"/>
+                            <TextBox Style="{StaticResource Stab.TextBox}" Width="80" HorizontalAlignment="Left"
+                                     Text="{Binding Passes, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="Threads" Style="{StaticResource Text.Label}" Margin="0,0,0,6"/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox Style="{StaticResource Stab.TextBox}" Width="80" HorizontalAlignment="Left"
+                                         Text="{Binding Threads, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBlock Style="{StaticResource Text.Muted}" VerticalAlignment="Center" Margin="8,0,0,0">
+                                    <Run Text="/ "/><Run Text="{Binding MaxThreads, Mode=OneWay}"/><Run Text=" dispo"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Action buttons -->
+                    <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                        <Button Content="Lancer le test" Style="{StaticResource Button.Primary}"
+                                Command="{Binding StartCommand}" Padding="18,9"/>
+                        <Button Content="Arrêter" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0" Padding="18,9"
+                                Command="{Binding StopCommand}"
+                                Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}"/>
+                    </StackPanel>
+
+                    <!-- Live progress -->
+                    <StackPanel Margin="0,18,0,0"
+                                Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}">
+                        <ProgressBar Height="6" Minimum="0" Maximum="100" Value="{Binding ProgressPercent}"
+                                     Background="{StaticResource Brush.Bg.Elevated}" Foreground="{StaticResource Brush.Gold}"
+                                     BorderThickness="0"/>
+                        <Grid Margin="0,8,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Text.Secondary}">
+                                    <Run Text="Passe "/><Run Text="{Binding CurrentPass, Mode=OneWay}"/><Run Text="/"/><Run Text="{Binding Passes, Mode=OneWay}"/>
+                                </TextBlock>
+                                <TextBlock Text="·" Style="{StaticResource Text.Muted}" Margin="8,0"/>
+                                <TextBlock Text="{Binding ProgressPhase}" Style="{StaticResource Text.Secondary}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <TextBlock Text="{Binding ThroughputDisplay}" Style="{StaticResource Text.Mono}"/>
+                                <TextBlock Text="·" Style="{StaticResource Text.Muted}" Margin="8,0"/>
+                                <TextBlock Style="{StaticResource Text.Mono}">
+                                    <Run Text="{Binding ProgressPercent, Mode=OneWay, StringFormat={}{0:0}}"/><Run Text=" %"/>
+                                </TextBlock>
+                                <TextBlock Text="·" Style="{StaticResource Text.Muted}" Margin="8,0"
+                                           Visibility="{Binding HasErrors, Converter={StaticResource BoolToVisibility}}"/>
+                                <TextBlock Foreground="{StaticResource Brush.Danger}" FontFamily="{StaticResource Font.Mono}"
+                                           Visibility="{Binding HasErrors, Converter={StaticResource BoolToVisibility}}">
+                                    <Run Text="{Binding LiveErrors, Mode=OneWay}"/><Run Text=" err."/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Verdict ===== -->
+            <!-- STABLE -->
+            <Border Style="{StaticResource Card.Gold}"
+                    Visibility="{Binding Result.Passed, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                        <TextBlock Text="STABLE" FontFamily="{StaticResource Font.Display}" FontSize="40" FontWeight="Bold"
+                                   Foreground="{StaticResource Brush.Success}"/>
+                        <TextBlock Text="sur ce test rapide" Style="{StaticResource Text.Body}" VerticalAlignment="Bottom" Margin="12,0,0,8"/>
+                    </StackPanel>
+                    <WrapPanel>
+                        <Border Style="{StaticResource Stab.Chip}"><StackPanel>
+                            <TextBlock Text="Testé" Style="{StaticResource Stab.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.SizeMbTested, StringFormat={}{0} Mo}" Style="{StaticResource Stab.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Stab.Chip}"><StackPanel>
+                            <TextBlock Text="Passes" Style="{StaticResource Stab.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.PassesCompleted}" Style="{StaticResource Stab.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Stab.Chip}"><StackPanel>
+                            <TextBlock Text="Débit moyen" Style="{StaticResource Stab.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.AvgThroughputMbps, StringFormat={}{0:0} Mo/s}" Style="{StaticResource Stab.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Stab.Chip}"><StackPanel>
+                            <TextBlock Text="Durée" Style="{StaticResource Stab.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.DurationSec, StringFormat={}{0:0.0} s}" Style="{StaticResource Stab.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Stab.Chip}"><StackPanel>
+                            <TextBlock Text="Erreurs" Style="{StaticResource Stab.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.ErrorCount}" Style="{StaticResource Stab.Chip.Value}"
+                                       Foreground="{StaticResource Brush.Success}"/></StackPanel></Border>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- INSTABLE -->
+            <Border Style="{StaticResource Card}" BorderBrush="{StaticResource Brush.Danger}" BorderThickness="1"
+                    Visibility="{Binding HasErrors, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                        <TextBlock Text="INSTABLE" FontFamily="{StaticResource Font.Display}" FontSize="40" FontWeight="Bold"
+                                   Foreground="{StaticResource Brush.Danger}"/>
+                        <TextBlock Text="erreurs mémoire détectées" Style="{StaticResource Text.Body}" VerticalAlignment="Bottom" Margin="12,0,0,8"/>
+                    </StackPanel>
+                    <WrapPanel>
+                        <Border Style="{StaticResource Stab.Chip}"><StackPanel>
+                            <TextBlock Text="Erreurs" Style="{StaticResource Stab.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.ErrorCount}" Style="{StaticResource Stab.Chip.Value}"
+                                       Foreground="{StaticResource Brush.Danger}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Stab.Chip}"><StackPanel>
+                            <TextBlock Text="Testé" Style="{StaticResource Stab.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.SizeMbTested, StringFormat={}{0} Mo}" Style="{StaticResource Stab.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Stab.Chip}"><StackPanel>
+                            <TextBlock Text="Passes" Style="{StaticResource Stab.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.PassesCompleted}" Style="{StaticResource Stab.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Stab.Chip}"><StackPanel>
+                            <TextBlock Text="Durée" Style="{StaticResource Stab.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.DurationSec, StringFormat={}{0:0.0} s}" Style="{StaticResource Stab.Chip.Value}"/></StackPanel></Border>
+                    </WrapPanel>
+
+                    <!-- Error sample list -->
+                    <Border Height="1" Background="{StaticResource Brush.Border.Subtle}" Margin="0,16"/>
+                    <TextBlock Text="ÉCHANTILLON D'ERREURS (offsets virtuels)" Style="{StaticResource Text.Label}" Margin="0,0,0,8"/>
+                    <ItemsControl ItemsSource="{Binding Result.Errors}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="170"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource Text.Mono}" Foreground="{StaticResource Brush.Text.Secondary}"
+                                               Text="{Binding ByteOffset, StringFormat={}offset 0x{0:X}}"/>
+                                    <TextBlock Grid.Column="1" Style="{StaticResource Text.Mono}" Margin="0,0,12,0">
+                                        <Run Text="attendu " Foreground="{StaticResource Brush.Text.Muted}"/><Run Text="{Binding Expected, Mode=OneWay, StringFormat={}{0:X16}}" Foreground="{StaticResource Brush.Success}"/>
+                                    </TextBlock>
+                                    <TextBlock Grid.Column="2" Style="{StaticResource Text.Mono}">
+                                        <Run Text="lu " Foreground="{StaticResource Brush.Text.Muted}"/><Run Text="{Binding Actual, Mode=OneWay, StringFormat={}{0:X16}}" Foreground="{StaticResource Brush.Danger}"/><Run Text="  ·  "/><Run Text="{Binding Pattern, Mode=OneWay}" Foreground="{StaticResource Brush.Text.Muted}"/>
+                                    </TextBlock>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- INTERROMPU (cancelled, no errors) -->
+            <Border Style="{StaticResource Card}"
+                    Visibility="{Binding ShowCancelledNotice, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="INTERROMPU" FontFamily="{StaticResource Font.Display}" FontSize="30" FontWeight="Bold"
+                                   Foreground="{StaticResource Brush.Warning}"/>
+                        <TextBlock Text="résultat partiel, ne prouve rien" Style="{StaticResource Text.Body}" VerticalAlignment="Bottom" Margin="12,0,0,4"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Notes / honesty ===== -->
+            <Border Style="{StaticResource Card}"
+                    Visibility="{Binding HasNotes, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="NOTES" Style="{StaticResource Text.Label}" Margin="0,0,0,8"/>
+                    <ItemsControl ItemsSource="{Binding Result.Notes}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="0,3">
+                                    <TextBlock Text="•  " Foreground="{StaticResource Brush.Gold}" VerticalAlignment="Top"/>
+                                    <TextBlock Text="{Binding}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" MaxWidth="860"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Share / export the result ===== -->
+            <Border Style="{StaticResource Card}"
+                    Visibility="{Binding HasResult, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="PARTAGER CE RÉSULTAT" Style="{StaticResource Text.Label}" Margin="0,0,0,6"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,0,0,14" TextWrapping="Wrap" MaxWidth="860" HorizontalAlignment="Left"
+                               Text="Copie ou exporte un rapport texte : verdict, paramètres, échantillon d'erreurs, et le rappel que ce test rapide ne remplace pas plusieurs heures de TM5 / Karhu. Pratique pour appuyer un « 6000 CL30 stable » sur un thread d'overclocking."/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Copier le rapport" Style="{StaticResource Button.Secondary}" Padding="14,8"
+                                Command="{Binding CopyReportCommand}"/>
+                        <Button Content="Exporter…" Style="{StaticResource Button.Tertiary}" Margin="10,0,0,0" Padding="12,8"
+                                Command="{Binding ExportReportCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,101 @@
+[
+  {
+    "id": "disable-edge-startup-boost",
+    "name": { "fr": "Désactiver Edge Startup Boost", "en": "Disable Edge Startup Boost" },
+    "description": {
+      "fr": "Désactive le pré-lancement d'Edge au démarrage Windows. Libère RAM et accélère boot.",
+      "en": "Disables Edge pre-launch at Windows startup. Frees RAM, faster boot."
+    },
+    "tier": "Avance",
+    "category": "Debloat",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Libère ~150 MB RAM idle + boot plus rapide",
+    "sources": [ "ChrisTitus", "Atlas OS" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+        "name": "StartupBoostEnabled", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      },
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SOFTWARE\\Policies\\Microsoft\\Edge",
+        "name": "BackgroundModeEnabled", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      }
+    ]
+  },
+  {
+    "id": "disable-search-web-results",
+    "name": { "fr": "Désactiver Bing dans la recherche Windows", "en": "Disable Bing in Windows Search" },
+    "description": {
+      "fr": "Supprime les résultats web Bing du menu Démarrer. Recherche locale plus rapide, plus de privacy.",
+      "en": "Removes Bing web results from Start menu search. Faster local search + privacy."
+    },
+    "tier": "Avance",
+    "category": "PrivacyTelemetry",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Recherche locale instantanée, privacy +",
+    "sources": [ "Atlas OS", "ShutUp10", "marvingdt/opti-pc" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKCU",
+        "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Search",
+        "name": "BingSearchEnabled", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      },
+      {
+        "type": "Registry", "hive": "HKCU",
+        "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Search",
+        "name": "CortanaConsent", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      },
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search",
+        "name": "DisableWebSearch", "valueType": "DWord",
+        "apply": "1", "revert": "0"
+      }
+    ]
+  },
+  {
+    "id": "disable-suggested-content",
+    "name": { "fr": "Désactiver les suggestions Windows", "en": "Disable Windows suggestions" },
+    "description": {
+      "fr": "Désactive toutes les suggestions Windows (Tips, Welcome experience, Tailored experiences).",
+      "en": "Disables all Windows suggestions (Tips, Welcome experience, Tailored experiences)."
+    },
+    "tier": "Avance",
+    "category": "PrivacyTelemetry",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Plus de pub Windows, privacy +",
+    "sources": [ "ShutUp10", "Atlas OS" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKCU",
+        "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+        "name": "SubscribedContent-338388Enabled", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      },
+      {
+        "type": "Registry", "hive": "HKCU",
+        "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+        "name": "SubscribedContent-353694Enabled", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      },
+      {
+        "type": "Registry", "hive": "HKCU",
+        "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+        "name": "SystemPaneSuggestionsEnabled", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      }
+    ]
+  }
+]

@@ -1,0 +1,123 @@
+<UserControl x:Class="AurumTweaks.Views.PagefileView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Mémoire virtuelle" Style="{StaticResource Text.Display}"/>
+            <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"
+                       Text="Le fichier d'échange (mémoire virtuelle) est l'espace disque que Windows utilise comme extension de la RAM. Cette page lit la configuration réelle rapportée par Windows : gestion automatique ou non, emplacement, taille allouée, utilisation courante et pic, taille configurée. La seule modification appliquée ici est sûre — rétablir la gestion automatique (l'état recommandé), vérifiée après coup et effective au redémarrage. Définir une taille fixe se fait dans la boîte de dialogue Windows (raccourci ci-dessous). Un fichier d'échange fixe n'augmente pas les FPS, et le désactiver peut faire planter certains jeux ou applications."/>
+
+            <!-- Synthesis: mode + the honest recommendation + the one safe write + hand-offs -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Synthèse" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+
+                    <WrapPanel Margin="0,12,0,0">
+                        <Border Style="{StaticResource MetricChip}">
+                            <StackPanel>
+                                <TextBlock Text="Mode" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                <TextBlock Text="{Binding ModeDisplay}" Style="{StaticResource Text.Body}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChip}">
+                            <StackPanel>
+                                <TextBlock Text="Total alloué" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                <TextBlock Text="{Binding TotalAllocatedDisplay}" Style="{StaticResource Text.Body}"/>
+                            </StackPanel>
+                        </Border>
+                    </WrapPanel>
+
+                    <!-- Verdict line: colored dot mirrors DriveHealth / MemoryModules honest tri-state -->
+                    <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                        <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,2,8,0"
+                                 Fill="{StaticResource Brush.Warning}"
+                                 Visibility="{Binding VerdictWarn, Converter={StaticResource BoolToVisibility}}"/>
+                        <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,2,8,0"
+                                 Fill="{StaticResource Brush.Success}"
+                                 Visibility="{Binding VerdictOk, Converter={StaticResource BoolToVisibility}}"/>
+                        <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,2,8,0"
+                                 Fill="{StaticResource Brush.Text.Muted}"
+                                 Visibility="{Binding VerdictInfo, Converter={StaticResource BoolToVisibility}}"/>
+                        <TextBlock Text="{Binding RecommendationHeadline}" Style="{StaticResource Text.Secondary}"
+                                   FontWeight="SemiBold" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding RecommendationDetail}" Style="{StaticResource Text.Muted}"
+                               Margin="0,6,0,0" TextWrapping="Wrap"/>
+
+                    <!-- The one safe, verified write (disabled when already auto-managed) -->
+                    <WrapPanel Margin="0,14,0,0">
+                        <Button Content="Actualiser" Style="{StaticResource Button.Secondary}"
+                                Command="{Binding RefreshCommand}"/>
+                        <Button Content="Rétablir la gestion automatique" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding RestoreAutomaticCommand}"/>
+                    </WrapPanel>
+
+                    <!-- Honest hand-offs: custom sizing lives in Windows' own dialog -->
+                    <WrapPanel Margin="0,10,0,0">
+                        <Button Content="Options de performances (mémoire virtuelle)" Style="{StaticResource Button.Primary}"
+                                Command="{Binding OpenVirtualMemoryDialogCommand}"/>
+                        <Button Content="Infos système" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding OpenAboutSettingsCommand}"/>
+                        <Button Content="Mémoire vive" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding GoToMemoryCommand}"/>
+                    </WrapPanel>
+
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Per-pagefile detail -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="Fichiers d'échange" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,8,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding HasEntries, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
+                               Text="Aucun fichier d'échange actif. S'il est désactivé, réactive la gestion automatique ci-dessus (recommandé) ; sinon utilise « Actualiser »."/>
+
+                    <ItemsControl ItemsSource="{Binding Entries}" Margin="0,12,0,0"
+                                  Visibility="{Binding HasEntries, Converter={StaticResource BoolToVisibility}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card.Compact}" Margin="0,5">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding PathDisplay}" Style="{StaticResource Text.Body}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding Drive}" Style="{StaticResource Text.Muted}" Margin="0,2,0,0"/>
+
+                                        <WrapPanel Margin="0,10,0,0">
+                                            <Border Style="{StaticResource MetricChip}">
+                                                <StackPanel>
+                                                    <TextBlock Text="Alloué" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                                    <TextBlock Text="{Binding AllocatedDisplay}" Style="{StaticResource Text.Body}"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Style="{StaticResource MetricChip}">
+                                                <StackPanel>
+                                                    <TextBlock Text="Utilisé" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                                    <TextBlock Text="{Binding CurrentDisplay}" Style="{StaticResource Text.Body}"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Style="{StaticResource MetricChip}">
+                                                <StackPanel>
+                                                    <TextBlock Text="Pic" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                                    <TextBlock Text="{Binding PeakDisplay}" Style="{StaticResource Text.Body}"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Style="{StaticResource MetricChip}">
+                                                <StackPanel>
+                                                    <TextBlock Text="Configuré" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                                    <TextBlock Text="{Binding ConfiguredDisplay}" Style="{StaticResource Text.Body}"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

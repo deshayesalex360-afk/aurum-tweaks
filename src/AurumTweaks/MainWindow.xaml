@@ -1,0 +1,613 @@
+<Window x:Class="AurumTweaks.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:AurumTweaks.Views"
+        xmlns:vm="clr-namespace:AurumTweaks.ViewModels"
+        xmlns:controls="clr-namespace:AurumTweaks.Controls"
+        xmlns:services="clr-namespace:AurumTweaks.Services"
+        Title="Aurum Tweaks"
+        Icon="pack://application:,,,/Assets/app.ico"
+        Height="840" Width="1380"
+        MinHeight="660" MinWidth="1100"
+        WindowStyle="None"
+        ResizeMode="CanResize"
+        AllowsTransparency="False"
+        Background="{StaticResource Brush.Bg.Base}"
+        FontFamily="{StaticResource Font.Body}"
+        Foreground="{StaticResource Brush.Text.Primary}">
+    <Window.InputBindings>
+        <!-- Linear-style universal launcher: Ctrl+K toggles the command palette from anywhere in the window. -->
+        <KeyBinding Modifiers="Control" Key="K" Command="{Binding Palette.ToggleCommand}"/>
+    </Window.InputBindings>
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="36" CornerRadius="0" GlassFrameThickness="0" ResizeBorderThickness="6" UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <DataTemplate DataType="{x:Type vm:DashboardViewModel}"><views:DashboardView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:TweaksViewModel}"><views:TweaksView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:BiosViewModel}"><views:BiosView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:RamCalculatorViewModel}"><views:RamCalculatorView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:StabilityViewModel}"><views:StabilityView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:CpuStabilityViewModel}"><views:CpuStabilityView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:OverclockingViewModel}"><views:OverclockingView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:GamingViewModel}"><views:GamingView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:StartupViewModel}"><views:StartupView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:PowerPlanViewModel}"><views:PowerPlanView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ScheduledTasksViewModel}"><views:ScheduledTasksView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:AppxDebloatViewModel}"><views:AppxDebloatView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DiskCleanupViewModel}"><views:DiskCleanupView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DriveHealthViewModel}"><views:DriveHealthView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ProcessControlViewModel}"><views:ProcessControlView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:LatencyDiagnosticsViewModel}"><views:LatencyDiagnosticsView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ServiceControlViewModel}"><views:ServiceControlView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:VisualEffectsViewModel}"><views:VisualEffectsView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:MemoryViewModel}"><views:MemoryView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:PrivacyViewModel}"><views:PrivacyView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:GameOptiViewModel}"><views:GameOptiView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:RestoreManagerViewModel}"><views:RestoreManagerView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SleepHibernationViewModel}"><views:SleepHibernationView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:MemoryModulesViewModel}"><views:MemoryModulesView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:NetworkAdaptersViewModel}"><views:NetworkAdaptersView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:PagefileViewModel}"><views:PagefileView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:AudioViewModel}"><views:AudioView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:WindowsUpdateViewModel}"><views:WindowsUpdateView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DisplayViewModel}"><views:DisplayView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DnsViewModel}"><views:DnsView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:BenchmarkViewModel}"><views:BenchmarkView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DriversViewModel}"><views:DriversView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:DevicesViewModel}"><views:DevicesView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:MonitoringViewModel}"><views:MonitoringView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:ProfilesViewModel}"><views:ProfilesView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:JournalViewModel}"><views:JournalView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SnapshotViewModel}"><views:SnapshotView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:TipsViewModel}"><views:TipsView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:SettingsViewModel}"><views:SettingsView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:TransparencyViewModel}"><views:TransparencyView/></DataTemplate>
+        <DataTemplate DataType="{x:Type vm:LicenseViewModel}"><views:LicenseView/></DataTemplate>
+    </Window.Resources>
+
+    <Border BorderBrush="{StaticResource Brush.Border.Strong}" BorderThickness="1">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="240"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="36"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- ===== Title bar (Linear-style ultra clean) ===== -->
+            <Grid Grid.ColumnSpan="2" Grid.Row="0"
+                  Background="{StaticResource Brush.Bg.TitleBar}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="240"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" BorderBrush="{StaticResource Brush.Border.Subtle}" BorderThickness="0,0,1,0">
+                    <StackPanel Orientation="Horizontal" Margin="14,0,0,0" VerticalAlignment="Center">
+                        <Ellipse Width="6" Height="6" Fill="{StaticResource Brush.Gold}" Margin="0,0,8,0"/>
+                        <TextBlock Text="AURUM TWEAKS" FontFamily="{StaticResource Font.Display}"
+                                   FontWeight="SemiBold" FontSize="11"
+                                   Foreground="{StaticResource Brush.Text.Primary}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+                <TextBlock Grid.Column="1" Margin="20,0,0,0" VerticalAlignment="Center"
+                           Text="{Binding CurrentPageLabel}"
+                           FontFamily="{StaticResource Font.Body}"
+                           FontSize="11"
+                           Foreground="{StaticResource Brush.Text.Muted}"/>
+                <StackPanel Grid.Column="2" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
+                    <Button Style="{StaticResource WindowControlButton}" Click="MinBtn_Click" Content="&#xE921;"/>
+                    <Button Style="{StaticResource WindowControlButton}" Click="MaxBtn_Click" Content="&#xE922;"/>
+                    <Button Style="{StaticResource WindowControlButton.Close}" Click="CloseBtn_Click" Content="&#xE8BB;"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- ===== Sidebar with marble logo signature ===== -->
+            <Border Grid.Column="0" Grid.Row="1"
+                    Background="{StaticResource Brush.Sidebar.Gradient}"
+                    BorderBrush="{StaticResource Brush.Border.Subtle}"
+                    BorderThickness="0,0,1,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Marble signature logo block — THE BRAND -->
+                    <Border Grid.Row="0" Margin="14,18,14,24"
+                            BorderBrush="{StaticResource Brush.Border.Default}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Background="{StaticResource Brush.Bg.Card}"
+                            ClipToBounds="True">
+                        <Grid Height="120">
+                            <!-- Procedural marble slab -->
+                            <controls:MarbleSurface Seed="888"
+                                                    VeinDensity="1.6"
+                                                    VeinIntensity="0.95"
+                                                    BaseDarkness="0.025"
+                                                    RenderWidth="280"
+                                                    RenderHeight="160"
+                                                    Opacity="0.85"/>
+                            <!-- Vignette to ensure logo readability -->
+                            <Border>
+                                <Border.Background>
+                                    <RadialGradientBrush Center="0.5,0.55" GradientOrigin="0.5,0.55" RadiusX="0.7" RadiusY="0.9">
+                                        <GradientStop Color="#00000000" Offset="0"/>
+                                        <GradientStop Color="#88000000" Offset="0.9"/>
+                                        <GradientStop Color="#CC000000" Offset="1"/>
+                                    </RadialGradientBrush>
+                                </Border.Background>
+                            </Border>
+                            <!-- Logo lettermark -->
+                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                <TextBlock Text="AURUM" FontFamily="{StaticResource Font.Display}"
+                                           FontSize="22" FontWeight="Bold"
+                                           Foreground="{StaticResource Brush.Gold.Bright}"
+                                           HorizontalAlignment="Center">
+                                    <TextBlock.Effect>
+                                        <DropShadowEffect Color="#FFD4AF37" Opacity="0.4" BlurRadius="8" ShadowDepth="0"/>
+                                    </TextBlock.Effect>
+                                </TextBlock>
+                                <TextBlock Text="TWEAKS" FontFamily="{StaticResource Font.Display}"
+                                           FontSize="22" FontWeight="Thin"
+                                           Foreground="{StaticResource Brush.Text.Primary}"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,-6,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Nav region: universal-search launcher pinned on top, scrollable nav list below.
+                         The list has 37 destinations — without the ScrollViewer the tail items overflow a
+                         short window and become unreachable. -->
+                    <Grid Grid.Row="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0" Margin="14,0,14,10" Height="34"
+                                Background="{StaticResource Brush.Bg.Base}"
+                                BorderBrush="{StaticResource Brush.Border.Default}"
+                                BorderThickness="1" CornerRadius="6"
+                                Cursor="Hand"
+                                MouseLeftButtonUp="OpenPalette_Click"
+                                ToolTip="Recherche universelle — pages, actions et tweaks (Ctrl K)">
+                            <Grid Margin="9,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE721;"
+                                           FontSize="12" Foreground="{StaticResource Brush.Text.Muted}"
+                                           VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                <TextBlock Grid.Column="1" Text="Rechercher…" FontSize="12"
+                                           Foreground="{StaticResource Brush.Text.Faint}" VerticalAlignment="Center"/>
+                                <Border Grid.Column="2" Background="{StaticResource Brush.Bg.Elevated}"
+                                        CornerRadius="3" Padding="5,1" VerticalAlignment="Center">
+                                    <TextBlock Text="Ctrl K" FontSize="9" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Brush.Text.Muted}"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,2,0">
+                    <StackPanel>
+                        <RadioButton x:Name="NavDashboard" Style="{StaticResource NavButton}" IsChecked="True" GroupName="Nav" Tag="Dashboard" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE80F;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Tableau de bord"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Tweaks" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE9F5;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Tweaks Windows"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Startup" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE7E8;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Démarrage"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Power" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE945;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Alimentation"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="ScheduledTasks" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE916;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Tâches planifiées"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Appx" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE71D;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Applications préinstallées"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="DiskCleanup" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE74D;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Nettoyage disque"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="DriveHealth" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xEDA2;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Santé des disques"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Bios" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE950;" Margin="0,0,10,0"/>
+                                <TextBlock Text="BIOS"/>
+                                <Border Style="{StaticResource Badge.Gold}" Margin="8,0,0,0" Padding="5,1">
+                                    <TextBlock Text="MAX GAIN" FontSize="8" FontWeight="Bold" Foreground="{StaticResource Brush.Gold.Bright}"/>
+                                </Border>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="RamCalc" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE8EF;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Timings RAM"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Stability" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE73E;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Stabilité RAM"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="CpuStability" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE73E;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Stabilité CPU"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Overclocking" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE945;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Overclocking"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Gaming" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE7FC;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Gaming"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="NetworkAdapters" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE839;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Cartes réseau"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Dns" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE774;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Serveurs DNS"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="ProcessControl" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xEC4A;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Priorité &amp; affinité"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Latency" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE916;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Latence DPC/ISR"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Services" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE713;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Services Windows"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Privacy" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xEA18;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Confidentialité"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="GameOpti" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE9E9;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Optimisations jeu"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="RestorePoints" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE81C;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Points de restauration"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="SleepHib" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE708;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Veille &amp; hibernation"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="VisualEffects" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE771;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Effets visuels"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Memory" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE950;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Mémoire vive"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="MemoryModules" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE950;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Barrettes mémoire"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Pagefile" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE7C3;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Mémoire virtuelle"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Audio" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE767;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Son"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="WindowsUpdate" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE777;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Windows Update"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Display" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE7F4;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Affichage"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Benchmark" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE916;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Benchmark"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Drivers" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE968;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Pilotes"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Devices" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE765;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Périphériques"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Monitoring" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE9D9;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Monitoring"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Profiles" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE748;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Profils"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Journal" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE81C;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Journal"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Snapshots" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE722;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Instantanés système"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Tips" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE82F;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Conseils"/>
+                            </StackPanel>
+                        </RadioButton>
+                    </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+
+                    <StackPanel Grid.Row="2" Margin="6,12,6,12">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Transparency" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xEA18;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Transparence"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="License" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE192;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Licence"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Settings" Click="Nav_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE713;" Margin="0,0,10,0"/>
+                                <TextBlock Text="Paramètres"/>
+                            </StackPanel>
+                        </RadioButton>
+                        <TextBlock Text="v0.1.0 · early preview"
+                                   Margin="14,12,0,0" FontSize="10"
+                                   Foreground="{StaticResource Brush.Text.Faint}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ===== Content area ===== -->
+            <ContentControl Grid.Column="1" Grid.Row="1" Content="{Binding CurrentViewModel}"/>
+
+            <!-- ===== Command palette overlay (Ctrl+K) — Linear-style jump-to-anything ===== -->
+            <Grid Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Grid.ColumnSpan="2"
+                  Panel.ZIndex="100"
+                  Visibility="{Binding Palette.IsOpen, Converter={StaticResource BoolToVisibility}}">
+                <!-- Dim backdrop; a click anywhere outside the card dismisses. -->
+                <Border Background="#B3000000" MouseLeftButtonDown="PaletteBackdrop_MouseDown"/>
+
+                <!-- Palette card -->
+                <Border Width="660" MaxHeight="468" VerticalAlignment="Top" HorizontalAlignment="Center"
+                        Margin="0,96,0,0"
+                        Background="{StaticResource Brush.Bg.Elevated}"
+                        BorderBrush="{StaticResource Brush.Border.Strong}"
+                        BorderThickness="1" CornerRadius="10">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" Opacity="0.55" BlurRadius="36" ShadowDepth="10"/>
+                    </Border.Effect>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Search input -->
+                        <Grid Grid.Row="0" Margin="18,16,18,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE721;"
+                                       FontSize="17" Foreground="{StaticResource Brush.Gold}"
+                                       VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Grid Grid.Column="1">
+                                <TextBox x:Name="PaletteSearchBox"
+                                         Background="Transparent" BorderThickness="0"
+                                         Foreground="{StaticResource Brush.Text.Primary}"
+                                         CaretBrush="{StaticResource Brush.Gold}"
+                                         FontSize="16" VerticalContentAlignment="Center"
+                                         Text="{Binding Palette.Query, UpdateSourceTrigger=PropertyChanged}"
+                                         PreviewKeyDown="PaletteSearch_PreviewKeyDown"
+                                         IsVisibleChanged="PaletteSearch_IsVisibleChanged"/>
+                                <TextBlock Text="Rechercher une page, une action ou un tweak…" FontSize="16"
+                                           Foreground="{StaticResource Brush.Text.Faint}"
+                                           VerticalAlignment="Center" IsHitTestVisible="False">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Palette.Query}" Value="">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </Grid>
+
+                        <Border Grid.Row="1" Height="1" Background="{StaticResource Brush.Border.Subtle}"/>
+
+                        <!-- Results -->
+                        <ListBox x:Name="PaletteResultsList" Grid.Row="2"
+                                 Background="Transparent" BorderThickness="0" Padding="8"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ItemsSource="{Binding Palette.Results}"
+                                 SelectedIndex="{Binding Palette.SelectedIndex, Mode=TwoWay}"
+                                 PreviewMouseLeftButtonUp="PaletteResults_PreviewMouseLeftButtonUp">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Margin" Value="0,1"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListBoxItem">
+                                                <Border x:Name="Bd" Background="Transparent" CornerRadius="6" Padding="10,8">
+                                                    <ContentPresenter/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource Brush.Bg.CardHover}"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsSelected" Value="True">
+                                                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource Brush.Gold.Subtle}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type services:PaletteEntry}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding Title}" FontSize="13"
+                                                   Foreground="{StaticResource Brush.Text.Primary}"
+                                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                        <Border Grid.Column="1" Background="{StaticResource Brush.Bg.Panel}"
+                                                BorderBrush="{StaticResource Brush.Border.Subtle}" BorderThickness="1"
+                                                CornerRadius="3" Padding="6,1" VerticalAlignment="Center" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding Group}" FontSize="10"
+                                                       Foreground="{StaticResource Brush.Text.Muted}"/>
+                                        </Border>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+
+                        <!-- Empty state, shown over the empty list -->
+                        <TextBlock Grid.Row="2" Text="Aucun résultat" FontSize="13"
+                                   Foreground="{StaticResource Brush.Text.Faint}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Palette.Results.Count}" Value="0">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+
+                        <!-- Footer hint -->
+                        <Border Grid.Row="3" Background="{StaticResource Brush.Bg.Panel}"
+                                BorderBrush="{StaticResource Brush.Border.Subtle}" BorderThickness="0,1,0,0"
+                                Padding="16,8" CornerRadius="0,0,10,10">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="↑↓" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource Brush.Text.Muted}"/>
+                                <TextBlock Text="naviguer" FontSize="11" Foreground="{StaticResource Brush.Text.Faint}" Margin="5,0,16,0"/>
+                                <TextBlock Text="↵" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource Brush.Text.Muted}"/>
+                                <TextBlock Text="ouvrir" FontSize="11" Foreground="{StaticResource Brush.Text.Faint}" Margin="5,0,16,0"/>
+                                <TextBlock Text="Esc" FontWeight="SemiBold" FontSize="11" Foreground="{StaticResource Brush.Text.Muted}"/>
+                                <TextBlock Text="fermer" FontSize="11" Foreground="{StaticResource Brush.Text.Faint}" Margin="5,0,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

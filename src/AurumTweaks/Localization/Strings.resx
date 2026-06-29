@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+
+  <!-- App -->
+  <data name="App_Name"><value>Aurum Tweaks</value></data>
+  <data name="App_Tagline"><value>The all-in-one premium PC optimizer</value></data>
+
+  <!-- Navigation -->
+  <data name="Nav_Dashboard"><value>Dashboard</value></data>
+  <data name="Nav_Tweaks"><value>Tweaks</value></data>
+  <data name="Nav_Bios"><value>BIOS</value></data>
+  <data name="Nav_Overclocking"><value>Overclocking</value></data>
+  <data name="Nav_Gaming"><value>Gaming</value></data>
+  <data name="Nav_Drivers"><value>Drivers</value></data>
+  <data name="Nav_Monitoring"><value>Monitoring</value></data>
+  <data name="Nav_Profiles"><value>Profiles</value></data>
+  <data name="Nav_Tips"><value>Tips</value></data>
+  <data name="Nav_Settings"><value>Settings</value></data>
+
+  <!-- Tiers -->
+  <data name="Tier_Tranquille"><value>Safe</value></data>
+  <data name="Tier_Avance"><value>Advanced</value></data>
+  <data name="Tier_Extreme"><value>Extreme</value></data>
+  <data name="Tier_Tranquille_Desc"><value>Safe and reversible tweaks. Recommended for everyone.</value></data>
+  <data name="Tier_Avance_Desc"><value>Intermediate tweaks. Solid gains, low risk.</value></data>
+  <data name="Tier_Extreme_Desc"><value>Maximum tweaks. High gains, requires understanding the risks.</value></data>
+
+  <!-- Dashboard -->
+  <data name="Dashboard_Welcome"><value>Welcome to Aurum Tweaks</value></data>
+  <data name="Dashboard_Subtitle"><value>Your PC, at its peak</value></data>
+  <data name="Dashboard_QuickActions"><value>Quick actions</value></data>
+  <data name="Dashboard_SystemInfo"><value>System info</value></data>
+  <data name="Dashboard_Recommended"><value>Recommended for you</value></data>
+  <data name="Dashboard_LiveMetrics"><value>Live metrics</value></data>
+
+  <!-- Common -->
+  <data name="Common_Apply"><value>Apply</value></data>
+  <data name="Common_Cancel"><value>Cancel</value></data>
+  <data name="Common_Revert"><value>Revert</value></data>
+  <data name="Common_Save"><value>Save</value></data>
+  <data name="Common_Delete"><value>Delete</value></data>
+  <data name="Common_Confirm"><value>Confirm</value></data>
+  <data name="Common_Search"><value>Search...</value></data>
+  <data name="Common_All"><value>All</value></data>
+  <data name="Common_None"><value>None</value></data>
+  <data name="Common_Loading"><value>Loading...</value></data>
+  <data name="Common_Enabled"><value>Enabled</value></data>
+  <data name="Common_Disabled"><value>Disabled</value></data>
+  <data name="Common_Risk"><value>Risk</value></data>
+  <data name="Common_Impact"><value>Impact</value></data>
+  <data name="Common_Source"><value>Source</value></data>
+  <data name="Common_Reversible"><value>Reversible</value></data>
+  <data name="Common_NotReversible"><value>Not reversible</value></data>
+  <data name="Common_Yes"><value>Yes</value></data>
+  <data name="Common_No"><value>No</value></data>
+
+  <!-- Tweaks -->
+  <data name="Tweaks_Title"><value>Windows Tweaks</value></data>
+  <data name="Tweaks_Subtitle"><value>Optimize Windows safely with controlled tweaks</value></data>
+  <data name="Tweaks_ApplyAll"><value>Apply all selected</value></data>
+  <data name="Tweaks_RevertAll"><value>Revert everything</value></data>
+  <data name="Tweaks_FilterByTier"><value>Filter by tier</value></data>
+  <data name="Tweaks_FilterByCategory"><value>Filter by category</value></data>
+
+  <!-- BIOS -->
+  <data name="Bios_Title"><value>BIOS — where the biggest gains live</value></data>
+  <data name="Bios_Subtitle"><value>Tweaks impossible to apply from Windows. Detailed guides tailored to your motherboard.</value></data>
+  <data name="Bios_DetectedMobo"><value>Detected motherboard</value></data>
+  <data name="Bios_DetectedCpu"><value>Detected CPU</value></data>
+  <data name="Bios_OpenRamCalculator"><value>Open RAM Timings Calculator</value></data>
+  <data name="Bios_Checklist"><value>Interactive checklist</value></data>
+
+  <!-- OC -->
+  <data name="OC_Title"><value>Overclocking</value></data>
+  <data name="OC_Subtitle"><value>Push your hardware to its limits — with safety</value></data>
+  <data name="OC_AutoOC"><value>Smart Auto-OC</value></data>
+  <data name="OC_StabilityTest"><value>Stability test</value></data>
+
+  <!-- Gaming -->
+  <data name="Gaming_Title"><value>Gaming</value></data>
+  <data name="Gaming_Subtitle"><value>Game Mode, network optimization, per-game tweaks</value></data>
+  <data name="Gaming_GameMode"><value>Aurum Game Mode</value></data>
+  <data name="Gaming_NetworkOpti"><value>Network optimization</value></data>
+  <data name="Gaming_DetectedGames"><value>Detected games</value></data>
+
+  <!-- Drivers -->
+  <data name="Drivers_Title"><value>Drivers</value></data>
+  <data name="Drivers_Subtitle"><value>Up-to-date, clean and optimal drivers</value></data>
+  <data name="Drivers_LaunchDDU"><value>Launch DDU clean</value></data>
+  <data name="Drivers_NvidiaChooser"><value>NVIDIA driver chooser</value></data>
+
+  <!-- Monitoring -->
+  <data name="Monitoring_Title"><value>Monitoring</value></data>
+  <data name="Monitoring_Subtitle"><value>Real-time view of your hardware</value></data>
+  <data name="Monitoring_CPU"><value>CPU</value></data>
+  <data name="Monitoring_GPU"><value>GPU</value></data>
+  <data name="Monitoring_RAM"><value>RAM</value></data>
+  <data name="Monitoring_Temp"><value>Temperature</value></data>
+  <data name="Monitoring_Network"><value>Network</value></data>
+
+  <!-- Profiles -->
+  <data name="Profiles_Title"><value>Profiles</value></data>
+  <data name="Profiles_Subtitle"><value>Save and load your tweak configurations</value></data>
+  <data name="Profiles_Create"><value>Create profile</value></data>
+  <data name="Profiles_Preset_Stock"><value>Stock (default Windows)</value></data>
+  <data name="Profiles_Preset_Gaming"><value>Competitive gaming</value></data>
+  <data name="Profiles_Preset_GamingSafe"><value>Competitive safe (anti-cheat ok)</value></data>
+  <data name="Profiles_Preset_Streaming"><value>Streaming</value></data>
+  <data name="Profiles_Preset_Workstation"><value>Workstation</value></data>
+
+  <!-- Tips -->
+  <data name="Tips_Title"><value>Tips &amp; recommendations</value></data>
+  <data name="Tips_Subtitle"><value>OS choice, custom OS, hardware mods</value></data>
+  <data name="Tips_OSChoice"><value>Which Windows / OS to use</value></data>
+  <data name="Tips_CustomOS"><value>Custom OS: Atlas, Tiny11, ReviOS, Ghost Spectre</value></data>
+  <data name="Tips_HardwareMods"><value>Recommended hardware modifications</value></data>
+
+  <!-- Settings -->
+  <data name="Settings_Title"><value>Settings</value></data>
+  <data name="Settings_Language"><value>Language</value></data>
+  <data name="Settings_Theme"><value>Theme</value></data>
+  <data name="Settings_RestorePoint"><value>Create a restore point before each tweak</value></data>
+  <data name="Settings_AntiCheatMode"><value>Strict competitive anti-cheat mode</value></data>
+
+  <!-- Anti-cheat -->
+  <data name="AntiCheat_Safe"><value>Anti-cheat safe</value></data>
+  <data name="AntiCheat_Risky"><value>Anti-cheat risky</value></data>
+  <data name="AntiCheat_Banned"><value>Anti-cheat banned</value></data>
+
+  <!-- Confirmations -->
+  <data name="Confirm_ApplyTweaks"><value>Apply selected tweaks?</value></data>
+  <data name="Confirm_ApplyTweaks_Detail"><value>A restore point will be created. Modifications are reversible.</value></data>
+  <data name="Confirm_RevertAll"><value>Revert all tweaks?</value></data>
+  <data name="Confirm_RevertAll_Detail"><value>Your Windows will return to its initial state.</value></data>
+
+</root>

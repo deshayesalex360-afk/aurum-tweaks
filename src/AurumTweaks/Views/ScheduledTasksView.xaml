@@ -1,0 +1,79 @@
+<UserControl x:Class="AurumTweaks.Views.ScheduledTasksView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Tâches planifiées" Style="{StaticResource Text.Display}"/>
+            <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"
+                       Text="Windows planifie des tâches de télémétrie, de commentaires et de diagnostics qui envoient des données à Microsoft en arrière-plan. Cette liste ne contient que des tâches connues et sûres à désactiver — la désactivation est entièrement réversible (schtasks /Change). C'est avant tout une question de confidentialité : aucun gain de FPS n'est promis ici."/>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Actualiser" Style="{StaticResource Button.Primary}" Command="{Binding RefreshCommand}"/>
+                        <Button Content="Planificateur de tâches" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding OpenTaskSchedulerCommand}"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
+                               Text="L'état est lu en direct via Get-ScheduledTask. Une tâche absente de cette édition de Windows est indiquée « absente » et n'est jamais inventée. Les tâches utiles (optimisation des lecteurs) sont signalées « à conserver »."/>
+
+                    <ItemsControl ItemsSource="{Binding Tasks}" Margin="0,12,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card.Compact}" Margin="0,4">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Body}"/>
+                                                <Border Style="{StaticResource Badge.Gold}" Margin="8,0,0,0" Padding="5,1"
+                                                        Visibility="{Binding ShowDisabledBadge, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="DÉSACTIVÉE" FontSize="8" FontWeight="Bold"
+                                                               Foreground="{StaticResource Brush.Gold.Bright}"/>
+                                                </Border>
+                                                <Border Background="#22FFFFFF" CornerRadius="3" Margin="8,0,0,0" Padding="5,1"
+                                                        Visibility="{Binding ShowAbsentBadge, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="ABSENTE" FontSize="8" FontWeight="Bold"
+                                                               Style="{StaticResource Text.Muted}"/>
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Style="{StaticResource Text.Muted}" Margin="0,2,0,0">
+                                                <Run Text="{Binding CategoryDisplay, Mode=OneWay}"/>
+                                                <Run Text=" ·"/>
+                                                <Run Text="{Binding StateDisplay, Mode=OneWay}"/>
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding FullPath}" Style="{StaticResource Text.Muted}"
+                                                       FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                                            <TextBlock Text="{Binding Advice}" Style="{StaticResource Text.Muted}"
+                                                       FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                        </StackPanel>
+
+                                        <Border Grid.Column="1" Style="{StaticResource Badge.Extreme}" VerticalAlignment="Center"
+                                                Margin="0,0,10,0"
+                                                Visibility="{Binding ShowKeepBadge, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="À CONSERVER" FontSize="9" FontWeight="Bold"
+                                                       Foreground="{StaticResource Brush.Danger}"/>
+                                        </Border>
+
+                                        <Button Grid.Column="2" VerticalAlignment="Center"
+                                                Content="{Binding ToggleLabel}" Style="{StaticResource Button.Secondary}"
+                                                Visibility="{Binding ShowToggle, Converter={StaticResource BoolToVisibility}}"
+                                                Command="{Binding DataContext.ToggleCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

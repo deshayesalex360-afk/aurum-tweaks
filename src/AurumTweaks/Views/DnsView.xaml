@@ -1,0 +1,195 @@
+<UserControl x:Class="AurumTweaks.Views.DnsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Serveurs DNS" Style="{StaticResource Text.Display}"/>
+            <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"
+                       Text="Le DNS est le service qui traduit les noms de domaine (ex. google.com) en adresses IP. Cette page lit le DNS réel de chaque carte réseau et applique en un clic un résolveur public reconnu, à la place du panneau Windows. Honnêteté : un DNS plus rapide accélère la RÉSOLUTION DES NOMS (premier chargement des sites, recherche du serveur de jeu) — il ne réduit PAS ta latence (ping) une fois connecté au serveur de jeu, et ce n'est pas un gain de FPS. Le changement est réversible : reviens à « Automatique (DHCP) » à tout moment. Seuls des résolveurs publics documentés sont proposés. Sur un réseau d'entreprise, le DNS interne peut être nécessaire — reviens à l'automatique si la résolution échoue."/>
+
+            <!-- Synthesis + global actions + hand-offs -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Synthèse" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,2,8,0"
+                                 Fill="{StaticResource Brush.Success}"
+                                 Visibility="{Binding HasAdapters, Converter={StaticResource BoolToVisibility}}"/>
+                        <TextBlock Text="{Binding Headline}" Style="{StaticResource Text.Secondary}"
+                                   FontWeight="SemiBold" TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <WrapPanel Margin="0,14,0,0">
+                        <Button Content="Actualiser" Style="{StaticResource Button.Secondary}"
+                                Command="{Binding RefreshCommand}"/>
+                        <Button Content="Comparer et appliquer le plus rapide" Style="{StaticResource Button.Primary}" Margin="10,0,0,0"
+                                Command="{Binding BenchmarkFastestCommand}"
+                                ToolTip="Mesure les résolveurs publics par de vraies requêtes DNS, puis propose d'appliquer le plus rapide sur la carte active."/>
+                        <Button Content="Benchmark DNS détaillé" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding GoToBenchmarkCommand}"
+                                ToolTip="Ouvre la page Gaming : classement complet des résolveurs avec leur latence médiane."/>
+                        <Button Content="Connexions réseau" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding OpenNetworkConnectionsCommand}"/>
+                        <Button Content="Paramètres réseau" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding OpenNetworkSettingsCommand}"/>
+                    </WrapPanel>
+
+                    <!-- Measure→apply verdict: the benchmark winner, bridged to a curated preset BY ADDRESS, and one honest click to apply it on the active card. Hidden until a verdict exists; « Appliquer » is enabled only when it would genuinely change the config (DnsRecommendation gates every no-op case). -->
+                    <Border Style="{StaticResource Card.Compact}" Margin="0,14,0,0"
+                            Visibility="{Binding Recommendation, Converter={StaticResource StringNotEmptyToVisibility}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Recommendation}" Style="{StaticResource Text.Secondary}"
+                                       FontWeight="SemiBold" TextWrapping="Wrap"/>
+                            <Button Content="Appliquer sur la carte active" Style="{StaticResource Button.Primary}"
+                                    HorizontalAlignment="Left" Margin="0,10,0,0"
+                                    IsEnabled="{Binding CanApplyRecommended}"
+                                    Command="{Binding ApplyRecommendedCommand}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
+                               Text="Le changement est immédiat : la connexion peut être brièvement interrompue le temps que Windows ré-enregistre la carte. Astuce : lance d'abord « Benchmark DNS » (page Gaming) pour mesurer le résolveur le plus rapide, puis applique-le ici."/>
+                </StackPanel>
+            </Border>
+
+            <!-- Measured resolver ranking: the EVIDENCE behind the recommendation above. Read-only, shown only after a
+                 real benchmark; a non-responder shows « — », never a fake time. Copy/Export back a claim on a forum. -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0"
+                    Visibility="{Binding HasBenchmark, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="Classement des résolveurs (mesuré)" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,6,0,0" TextWrapping="Wrap"
+                               Text="Latence médiane de vraies requêtes DNS vers chaque résolveur public, du plus rapide au plus lent. « — » = pas de réponse. Mesuré localement ; un DNS plus rapide accélère la résolution des noms, pas le ping en jeu."/>
+                    <ItemsControl ItemsSource="{Binding LastBenchmark.Ranked}" Margin="0,12,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="200"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="64"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Resolver.Name}" Style="{StaticResource Text.Body}"/>
+                                        <TextBlock Text="• actuel" Style="{StaticResource Text.Gold}" FontSize="11"
+                                                   Margin="8,0,0,0" VerticalAlignment="Center"
+                                                   Visibility="{Binding Resolver.IsCurrent, Converter={StaticResource BoolToVisibility}}"/>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="1" Text="{Binding Resolver.Address}" Style="{StaticResource Text.Muted}"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding ReliabilityDisplay}" Style="{StaticResource Text.Muted}" Margin="0,0,16,0"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding LatencyDisplay}" Style="{StaticResource Text.Gold}" HorizontalAlignment="Right"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <Button Content="Copier le classement" Style="{StaticResource Button.Secondary}" Padding="14,8"
+                                Command="{Binding CopyReportCommand}"/>
+                        <Button Content="Exporter…" Style="{StaticResource Button.Tertiary}" Margin="10,0,0,0" Padding="12,8"
+                                Command="{Binding ExportReportCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Per-adapter cards -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="Cartes réseau" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,8,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding HasAdapters, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
+                               Text="Aucune carte réseau IP active. Utilise « Actualiser » après avoir connecté un câble ou activé le Wi-Fi."/>
+
+                    <ItemsControl ItemsSource="{Binding Adapters}" Margin="0,12,0,0"
+                                  Visibility="{Binding HasAdapters, Converter={StaticResource BoolToVisibility}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card.Compact}" Margin="0,5">
+                                    <StackPanel>
+                                        <!-- Identity + mode -->
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,12,0">
+                                                <TextBlock Text="{Binding State.Name}" Style="{StaticResource Text.Body}"
+                                                           FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                <Border Style="{StaticResource Badge.Gold}" Margin="8,0,0,0" Padding="5,1"
+                                                        VerticalAlignment="Center"
+                                                        Visibility="{Binding State.IsConnected, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="ACTIVE" FontSize="8" FontWeight="Bold"
+                                                               Foreground="{StaticResource Brush.Gold.Bright}"/>
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="{Binding State.ModeLabel}"
+                                                       Style="{StaticResource Text.Muted}" VerticalAlignment="Center"/>
+                                        </Grid>
+
+                                        <TextBlock Style="{StaticResource Text.Muted}" Margin="0,3,0,0" TextWrapping="Wrap">
+                                            <Run Text="DNS actuel : "/>
+                                            <Run Text="{Binding State.EffectiveDisplay, Mode=OneWay}"/>
+                                            <Run Text=" · "/>
+                                            <Run Text="{Binding State.SourceNote, Mode=OneWay}"/>
+                                        </TextBlock>
+
+                                        <!-- Revert: only shown when DNS is actually pinned static -->
+                                        <Button Content="Revenir à l'automatique (DHCP)" Style="{StaticResource Button.Secondary}"
+                                                HorizontalAlignment="Left" Margin="0,10,0,0"
+                                                Visibility="{Binding State.CanRevertToAutomatic, Converter={StaticResource BoolToVisibility}}"
+                                                Command="{Binding DataContext.RevertCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding State}"/>
+
+                                        <!-- Curated resolver presets -->
+                                        <TextBlock Text="Résolveurs proposés :" Style="{StaticResource Text.Muted}"
+                                                   FontSize="11" Margin="0,12,0,0"/>
+                                        <ItemsControl ItemsSource="{Binding Presets}" Margin="0,6,0,0">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Style="{StaticResource Card.Compact}" Width="244" Margin="0,0,8,8"
+                                                            VerticalAlignment="Top">
+                                                        <StackPanel>
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                                                           Style="{StaticResource Text.Body}" FontWeight="SemiBold"
+                                                                           TextWrapping="Wrap"/>
+                                                                <TextBlock Grid.Column="1" Text="✓ Actif" FontSize="9" FontWeight="Bold"
+                                                                           VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource Brush.Gold.Bright}"
+                                                                           Visibility="{Binding IsActive, Converter={StaticResource BoolToVisibility}}"/>
+                                                            </Grid>
+                                                            <TextBlock Text="{Binding ServersDisplay}" Style="{StaticResource Text.Muted}"
+                                                                       FontFamily="Consolas, monospace" Margin="0,3,0,0"/>
+                                                            <TextBlock Text="{Binding Description}" Style="{StaticResource Text.Muted}"
+                                                                       FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                                            <Button Content="Appliquer" Style="{StaticResource Button.Tertiary}"
+                                                                    HorizontalAlignment="Left" Margin="0,8,0,0"
+                                                                    IsEnabled="{Binding CanApply}"
+                                                                    Command="{Binding DataContext.ApplyPresetCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                    CommandParameter="{Binding}"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

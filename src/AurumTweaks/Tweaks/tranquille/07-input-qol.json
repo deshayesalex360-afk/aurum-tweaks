@@ -1,0 +1,101 @@
+[
+  {
+    "id": "keyboard-fast-response",
+    "name": { "fr": "Réponse clavier la plus rapide", "en": "Fastest keyboard response" },
+    "description": {
+      "fr": "Met le délai de répétition clavier au minimum (KeyboardDelay=0). Les touches répètent instantanément — utile en jeu et pour la frappe rapide.",
+      "en": "Sets the keyboard repeat delay to its minimum (KeyboardDelay=0). Keys repeat instantly — useful in games and for fast typing."
+    },
+    "tier": "Tranquille",
+    "category": "UIQualityOfLife",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Répétition clavier instantanée",
+    "sources": [ "communauté FPS", "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 40,
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "Control Panel\\Keyboard",
+        "name": "KeyboardDelay",
+        "valueType": "String",
+        "apply": "0",
+        "revert": "1"
+      }
+    ]
+  },
+  {
+    "id": "disable-accessibility-shortcuts",
+    "name": { "fr": "Désactiver les raccourcis d'accessibilité (Sticky Keys…)", "en": "Disable accessibility shortcuts (Sticky Keys…)" },
+    "description": {
+      "fr": "Désactive l'activation par raccourci des touches rémanentes (5× Maj), des touches filtres et des touches bascule. Fini la pop-up qui sort du jeu quand tu maintiens Maj ou que tu spammes une touche.",
+      "en": "Disables the keyboard activation of Sticky Keys (Shift ×5), Filter Keys and Toggle Keys. No more pop-up yanking you out of a game when you hold Shift or spam a key."
+    },
+    "tier": "Tranquille",
+    "category": "Gaming",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Plus de pop-up d'accessibilité en jeu",
+    "sources": [ "communauté FPS", "marvingdt/opti-pc" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 42,
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "Control Panel\\Accessibility\\StickyKeys",
+        "name": "Flags",
+        "valueType": "String",
+        "apply": "506",
+        "revert": "510"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "Control Panel\\Accessibility\\Keyboard Response",
+        "name": "Flags",
+        "valueType": "String",
+        "apply": "122",
+        "revert": "126"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "Control Panel\\Accessibility\\ToggleKeys",
+        "name": "Flags",
+        "valueType": "String",
+        "apply": "38",
+        "revert": "62"
+      }
+    ]
+  },
+  {
+    "id": "disable-transparency-effects",
+    "name": { "fr": "Désactiver les effets de transparence", "en": "Disable transparency effects" },
+    "description": {
+      "fr": "Coupe les effets de transparence/acrylique de l'interface Windows. Allège le travail du compositeur DWM — utile sur GPU modeste ou pour grappiller quelques ressources au repos.",
+      "en": "Turns off Windows' transparency/acrylic UI effects. Lightens the DWM compositor's workload — handy on a modest GPU or to reclaim a little idle headroom."
+    },
+    "tier": "Tranquille",
+    "category": "UIQualityOfLife",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Compositeur DWM allégé, interface plus réactive",
+    "sources": [ "ShutUp10", "marvingdt/opti-pc" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 38,
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+        "name": "EnableTransparency",
+        "valueType": "DWord",
+        "apply": "0",
+        "revert": "1"
+      }
+    ]
+  }
+]

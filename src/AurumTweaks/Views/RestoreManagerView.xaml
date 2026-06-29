@@ -1,0 +1,102 @@
+<UserControl x:Class="AurumTweaks.Views.RestoreManagerView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Points de restauration" Style="{StaticResource Text.Display}"/>
+            <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"
+                       Text="Le filet de sécurité de Windows : un point de restauration capture l'état du système (registre, pilotes, fichiers système) pour pouvoir y revenir si une modification tourne mal. Cette page liste les points RÉELS que Windows rapporte, en crée un nouveau dont la réussite est VÉRIFIÉE (le point doit réellement apparaître), et permet de lever la limite des 24 h. La restauration elle-même est confiée à l'assistant natif de Windows (rstrui.exe) — c'est une opération avec redémarrage, jamais simulée ici. À noter : un point de restauration ne sauvegarde PAS tes documents personnels — pour ça, utilise une vraie sauvegarde."/>
+
+            <!-- Create a checkpoint + the honest hand-offs -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Créer un point de restauration" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <TextBox Width="280" Text="{Binding CheckpointDescription, UpdateSourceTrigger=PropertyChanged}"
+                                 Background="{StaticResource Brush.Bg.Elevated}"
+                                 Foreground="{StaticResource Brush.Text.Primary}"
+                                 BorderBrush="{StaticResource Brush.Border.Default}"
+                                 Padding="10,6" FontSize="12" VerticalContentAlignment="Center" Margin="0,0,10,0"/>
+                        <Button Content="Créer le point" Style="{StaticResource Button.Primary}"
+                                Command="{Binding CreateCheckpointCommand}"/>
+                    </StackPanel>
+
+                    <WrapPanel Margin="0,12,0,0">
+                        <Button Content="Restaurer le système…" Style="{StaticResource Button.Secondary}"
+                                Command="{Binding OpenRestoreWizardCommand}"/>
+                        <Button Content="Actualiser" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding RefreshCommand}"/>
+                        <!-- Shown only when protection reads off (ProtectionOff) — never a dead/pointless button:
+                             clicking enables System Restore directly (the app runs the elevated Enable-ComputerRestore),
+                             then re-reads. If Windows blocks it, the « impossible » state honestly stays. The app does
+                             the action, not the user. -->
+                        <Button Content="Activer la protection" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding EnableProtectionCommand}"
+                                Visibility="{Binding ProtectionOff, Converter={StaticResource BoolToVisibility}}"
+                                ToolTip="Active la Restauration système maintenant, puis revérifie l'état de la protection."/>
+                    </WrapPanel>
+
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
+                               Text="La réussite de la création est mesurée : le nouveau point doit apparaître dans la liste, sinon la page indique honnêtement que Windows l'a ignoré (un point existe déjà dans les dernières 24 h). « Restaurer le système… » ouvre l'assistant Windows : choisis un point, ton PC redémarre pour y revenir — les applications installées après ce point seront retirées, tes fichiers personnels ne sont pas touchés."/>
+                </StackPanel>
+            </Border>
+
+            <!-- The 24h throttle lever (a real reversible registry write) -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="Fréquence de création" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding FrequencyState}" Style="{StaticResource Text.Secondary}" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
+                               Text="Par défaut, Windows ne crée qu'un point par tranche de 24 h, même si on en demande plusieurs. Lever la limite est utile avant une série de modifications ; pense à la rétablir ensuite pour éviter d'accumuler des points (et de l'espace disque)."/>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Lever la limite" Style="{StaticResource Button.Tertiary}"
+                                IsEnabled="{Binding CanUnthrottle}"
+                                Command="{Binding UnthrottleCommand}"/>
+                        <Button Content="Rétablir la limite (défaut)" Style="{StaticResource Button.Tertiary}" Margin="8,0,0,0"
+                                IsEnabled="{Binding CanRestoreThrottle}"
+                                Command="{Binding RestoreThrottleCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- The live point list -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="Points existants" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
+                               Visibility="{Binding HasNoPoints, Converter={StaticResource BoolToVisibility}}"
+                               Text="Aucun point n'est listé. S'il n'y en a vraiment aucun, crées-en un avant toute modification importante. Si la lecture est impossible, la protection système est peut-être désactivée — ouvre « Protection système » pour l'activer."/>
+
+                    <ItemsControl ItemsSource="{Binding Points}" Margin="0,8,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card.Compact}" Margin="0,4">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                            <TextBlock Text="{Binding DescriptionDisplay}" Style="{StaticResource Text.Body}" TextWrapping="Wrap"/>
+                                            <TextBlock Style="{StaticResource Text.Muted}" Margin="0,2,0,0">
+                                                <Run Text="{Binding SummaryDisplay, Mode=OneWay}"/>
+                                            </TextBlock>
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                            <TextBlock Text="{Binding WhenDisplay}" Style="{StaticResource Text.Body}" HorizontalAlignment="Right"/>
+                                            <TextBlock Text="{Binding AgeDisplay}" Style="{StaticResource Text.Muted}" FontSize="11" HorizontalAlignment="Right"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

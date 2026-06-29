@@ -1,0 +1,7 @@
+# Keep the graphify knowledge graph scoped to real source.
+# .NET build output and IDE/test caches are generated and never architecturally
+# meaningful — pruning them here makes `graphify update .` faster and the graph cleaner.
+bin/
+obj/
+TestResults/
+.vs/

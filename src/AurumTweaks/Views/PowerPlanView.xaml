@@ -1,0 +1,97 @@
+<UserControl x:Class="AurumTweaks.Views.PowerPlanView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Plan d'alimentation" Style="{StaticResource Text.Display}"/>
+            <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"
+                       Text="Le plan d'alimentation Windows décide à quel point le CPU peut monter en fréquence et quand il s'autorise à se reposer. En jeu, « Performances élevées » ou « Performances ultimes » évitent le throttling et réduisent la latence ; « Économie d'énergie » fait l'inverse. Changer de plan est instantané et entièrement réversible."/>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Actualiser" Style="{StaticResource Button.Primary}" Command="{Binding RefreshCommand}"/>
+                        <Button Content="Activer les performances ultimes" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding EnableUltimateCommand}"/>
+                        <Button Content="Options Windows" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding OpenWindowsPowerCommand}"/>
+                        <Button Content="Copier le rapport" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding CopyReportCommand}"
+                                ToolTip="Copie le plan actif, la liste des plans et le détail processeur dans le presse-papiers — prêt à coller sur un forum ou un ticket. Activé après lecture."/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
+                               Text="« Performances ultimes » est masqué par défaut sur certaines éditions de Windows : Aurum le crée alors via la méthode officielle (duplication du plan de base) avant de l'activer. Aucun gain de FPS n'est promis ici — le plan agit sur le comportement de fréquence du CPU, pas sur un chiffre inventé."/>
+
+                    <ItemsControl ItemsSource="{Binding Schemes}" Margin="0,12,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card.Compact}" Margin="0,4">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Body}"/>
+                                                <Border Style="{StaticResource Badge.Gold}" Margin="8,0,0,0" Padding="5,1"
+                                                        Visibility="{Binding IsActive, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="ACTIF" FontSize="8" FontWeight="Bold"
+                                                               Foreground="{StaticResource Brush.Gold.Bright}"/>
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding Advice}" Style="{StaticResource Text.Muted}"
+                                                       FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"
+                                                       Visibility="{Binding Advice, Converter={StaticResource StringNotEmptyToVisibility}}"/>
+                                            <TextBlock Text="{Binding IdString}" Style="{StaticResource Text.Muted}"
+                                                       FontSize="10" Opacity="0.55" Margin="0,2,0,0"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+
+                                        <Button Grid.Column="1" VerticalAlignment="Center"
+                                                Content="{Binding ActivateLabel}" Style="{StaticResource Button.Secondary}"
+                                                Visibility="{Binding IsActive, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
+                                                Command="{Binding DataContext.ActivateCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Active plan's processor detail — read-only, « sur secteur ». Hidden if powercfg couldn't read it. -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0"
+                    Visibility="{Binding HasProcessorDetail, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="Détail du plan actif (processeur)" Style="{StaticResource Text.H3}"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
+                               Text="Ce que le plan actif demande au CPU, sur secteur. Lecture seule : cette carte montre l'état réel rapporté par powercfg, elle n'agit pas sur le plan (les réglages se font via les tweaks)."/>
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" MinWidth="180"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="État processeur minimal" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding ProcessorDetail.MinStateDisplay}" Style="{StaticResource Text.Body}" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="État processeur maximal" Style="{StaticResource Text.Muted}" Margin="0,0,0,6"/>
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding ProcessorDetail.MaxStateDisplay}" Style="{StaticResource Text.Body}" FontWeight="SemiBold" Margin="0,0,0,6"/>
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Parcage des cœurs" Style="{StaticResource Text.Muted}"/>
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding ProcessorDetail.CoreParkingDisplay}" Style="{StaticResource Text.Body}"/>
+                    </Grid>
+                    <TextBlock Text="{Binding ProcessorDetail.Interpretation}" Style="{StaticResource Text.Secondary}"
+                               Margin="0,12,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

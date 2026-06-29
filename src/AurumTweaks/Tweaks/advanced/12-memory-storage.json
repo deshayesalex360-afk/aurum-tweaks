@@ -1,0 +1,100 @@
+[
+  {
+    "id": "ntfs-disable-lastaccess",
+    "name": { "fr": "NTFS : désactiver l'horodatage de dernier accès", "en": "NTFS: disable Last Access timestamp" },
+    "description": {
+      "fr": "Empêche NTFS de réécrire la date de « dernier accès » à chaque lecture de fichier (disablelastaccess=1). Moins d'écritures parasites — réduit l'usure du SSD et soulage légèrement le disque.",
+      "en": "Stops NTFS from rewriting the 'last access' date on every file read (disablelastaccess=1). Fewer stray writes — reduces SSD wear and slightly relieves the disk."
+    },
+    "tier": "Avance",
+    "category": "Advanced",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Moins d'écritures disque, usure SSD réduite",
+    "sources": [ "Microsoft docs", "FR33THY", "marvingdt/opti-pc" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 50,
+    "operations": [
+      {
+        "type": "Cmd",
+        "script": "fsutil behavior set disablelastaccess 1",
+        "revertScript": "fsutil behavior set disablelastaccess 2"
+      }
+    ]
+  },
+  {
+    "id": "ntfs-disable-8dot3",
+    "name": { "fr": "NTFS : désactiver les noms courts 8.3", "en": "NTFS: disable 8.3 short names" },
+    "description": {
+      "fr": "Désactive la génération des noms de fichiers courts façon MS-DOS (NOM~1.EXT) sur tous les volumes. Accélère légèrement les opérations dans les dossiers contenant beaucoup de fichiers. N'affecte que les fichiers créés après application.",
+      "en": "Disables MS-DOS-style short filename generation (NAME~1.EXT) on all volumes. Slightly speeds up operations in folders with many files. Only affects files created after applying."
+    },
+    "tier": "Avance",
+    "category": "Advanced",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Dossiers à nombreux fichiers plus rapides",
+    "sources": [ "Microsoft docs", "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 44,
+    "warnings": { "fr": "De très rares vieux logiciels 16-bit exigent les noms courts. Réversible si besoin." },
+    "operations": [
+      {
+        "type": "Cmd",
+        "script": "fsutil behavior set disable8dot3 1",
+        "revertScript": "fsutil behavior set disable8dot3 2"
+      }
+    ]
+  },
+  {
+    "id": "ntfs-memory-usage-boost",
+    "name": { "fr": "NTFS : plus de cache métadonnées (RAM ≥ 16 Go)", "en": "NTFS: more metadata cache (RAM ≥ 16 GB)" },
+    "description": {
+      "fr": "Augmente la mémoire allouée au cache de métadonnées NTFS (memoryusage=2). Sur une machine bien dotée en RAM, l'accès aux fichiers et aux gros dossiers devient plus réactif.",
+      "en": "Increases the memory allotted to the NTFS metadata cache (memoryusage=2). On a RAM-rich machine, file and large-folder access becomes snappier."
+    },
+    "tier": "Avance",
+    "category": "Advanced",
+    "risk": "Low",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Accès fichiers/dossiers plus rapide, cache NTFS plus grand",
+    "sources": [ "Microsoft docs", "SpeedGuide" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "applicability": { "minRamGb": 16 },
+    "priority": 46,
+    "operations": [
+      {
+        "type": "Cmd",
+        "script": "fsutil behavior set memoryusage 2",
+        "revertScript": "fsutil behavior set memoryusage 1"
+      }
+    ]
+  },
+  {
+    "id": "disable-memory-compression",
+    "name": { "fr": "Désactiver la compression mémoire (RAM ≥ 32 Go)", "en": "Disable memory compression (RAM ≥ 32 GB)" },
+    "description": {
+      "fr": "Désactive la compression mémoire de Windows. Elle économise de la RAM au prix de cycles CPU ; avec 32 Go ou plus, tu as la RAM de reste — autant rendre ces cycles CPU au jeu et supprimer le processus « Compression de la mémoire ».",
+      "en": "Disables Windows memory compression. It trades CPU cycles to save RAM; with 32 GB or more you have RAM to spare — better to hand those CPU cycles back to the game and drop the 'Memory Compression' process."
+    },
+    "tier": "Avance",
+    "category": "Advanced",
+    "risk": "Low",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Moins de CPU background, RAM libre exploitée directement",
+    "sources": [ "FR33THY", "Microsoft docs" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "applicability": { "minRamGb": 32 },
+    "priority": 42,
+    "warnings": { "fr": "À NE PAS appliquer avec moins de 32 Go : la compression mémoire t'évite de swapper sur disque." },
+    "operations": [
+      {
+        "type": "PowerShell",
+        "script": "Disable-MMAgent -MemoryCompression",
+        "revertScript": "Enable-MMAgent -MemoryCompression"
+      }
+    ]
+  }
+]

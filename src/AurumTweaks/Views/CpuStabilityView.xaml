@@ -1,0 +1,297 @@
+<UserControl x:Class="AurumTweaks.Views.CpuStabilityView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <UserControl.Resources>
+        <Style x:Key="Cpu.TextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource Brush.Bg.Elevated}"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Default}"/>
+            <Setter Property="CaretBrush" Value="{StaticResource Brush.Gold.Bright}"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+        <Style x:Key="Cpu.QuickBtn" TargetType="Button" BasedOn="{StaticResource Button.Tertiary}">
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+
+        <Style x:Key="Cpu.Chip" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Brush.Bg.Elevated}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.Border.Subtle}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="14,9"/>
+            <Setter Property="Margin" Value="0,0,8,8"/>
+            <Setter Property="MinWidth" Value="104"/>
+        </Style>
+        <Style x:Key="Cpu.Chip.Label" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource Font.Body}"/>
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Muted}"/>
+            <Setter Property="Margin" Value="0,0,0,3"/>
+        </Style>
+        <Style x:Key="Cpu.Chip.Value" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{StaticResource Font.Mono}"/>
+            <Setter Property="FontSize" Value="19"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource Brush.Text.Primary}"/>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+
+            <!-- Header -->
+            <StackPanel Margin="0,0,0,4">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Stabilité CPU" Style="{StaticResource Text.Display}"/>
+                    <Border Style="{StaticResource Badge.Subtle}" Margin="14,14,0,0" VerticalAlignment="Center" Height="22">
+                        <TextBlock Text="TEST RAPIDE · SURVEILLE LES TEMPÉRATURES" FontSize="10" FontWeight="Bold"
+                                   Foreground="{StaticResource Brush.Text.Secondary}" VerticalAlignment="Center"/>
+                    </Border>
+                </StackPanel>
+                <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,0" TextWrapping="Wrap" MaxWidth="900" HorizontalAlignment="Left"
+                           Text="Charge tous les cœurs logiques et vérifie chaque lot de calcul contre une référence : si un cœur calcule faux sous la charge, c'est que l'OC ou l'undervolt (Curve Optimizer) est instable. Complément du test de stabilité RAM."/>
+            </StackPanel>
+
+            <!-- Status line -->
+            <TextBlock Text="{Binding StatusText}" Style="{StaticResource Text.Muted}" Margin="0,8,0,16" TextWrapping="Wrap" MaxWidth="900" HorizontalAlignment="Left"
+                       Visibility="{Binding StatusText, Converter={StaticResource StringNotEmptyToVisibility}}"/>
+
+            <!-- ===== Configuration ===== -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="CONFIGURATION" Style="{StaticResource Text.Label}" Margin="0,0,0,16"/>
+
+                    <!-- Duration -->
+                    <TextBlock Text="Durée (secondes)" Style="{StaticResource Text.Label}" Margin="0,0,0,6"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox Style="{StaticResource Cpu.TextBox}" Width="120" HorizontalAlignment="Left"
+                                 Text="{Binding DurationSec, UpdateSourceTrigger=PropertyChanged}"/>
+                        <ItemsControl ItemsSource="{Binding QuickDurations}" Margin="12,0,0,0" VerticalAlignment="Center">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Style="{StaticResource Cpu.QuickBtn}"
+                                            Content="{Binding}" ContentStringFormat="{}{0} s"
+                                            Command="{Binding DataContext.SetDurationCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <!-- Threads -->
+                    <TextBlock Text="Threads à charger" Style="{StaticResource Text.Label}" Margin="0,18,0,6"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox Style="{StaticResource Cpu.TextBox}" Width="80" HorizontalAlignment="Left"
+                                 Text="{Binding Threads, UpdateSourceTrigger=PropertyChanged}"/>
+                        <TextBlock Style="{StaticResource Text.Muted}" VerticalAlignment="Center" Margin="8,0,0,0">
+                            <Run Text="/ "/><Run Text="{Binding MaxThreads, Mode=OneWay}"/><Run Text=" dispo"/>
+                        </TextBlock>
+                    </StackPanel>
+                    <TextBlock Text="{Binding DetectionNote}" Style="{StaticResource Text.Muted}" Margin="0,8,0,0" TextWrapping="Wrap" MaxWidth="900" HorizontalAlignment="Left"
+                               Visibility="{Binding DetectionNote, Converter={StaticResource StringNotEmptyToVisibility}}"/>
+
+                    <!-- Type of load (AVX2 vs scalar) -->
+                    <TextBlock Text="Type de charge" Style="{StaticResource Text.Label}" Margin="0,18,0,6"/>
+                    <StackPanel Orientation="Horizontal">
+                        <CheckBox Style="{StaticResource Toggle.Aurum}" IsChecked="{Binding UseAvx2}"
+                                  IsEnabled="{Binding Avx2Supported}" VerticalAlignment="Center"/>
+                        <TextBlock Text="Charge AVX2 (vectorielle 256-bit)" Style="{StaticResource Text.Body}"
+                                   VerticalAlignment="Center" Margin="10,0,0,0"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,8,0,0" TextWrapping="Wrap" MaxWidth="900" HorizontalAlignment="Left"
+                               Text="4 voies de calcul par cœur, plus proche du SIMD des jeux / encodage / rendu — c'est souvent ce qui fait tomber un undervolt stable en scalaire. Décoche pour une charge entière + FP scalaire."
+                               Visibility="{Binding Avx2Supported, Converter={StaticResource BoolToVisibility}}"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,8,0,0" TextWrapping="Wrap" MaxWidth="900" HorizontalAlignment="Left"
+                               Foreground="{StaticResource Brush.Warning}"
+                               Text="AVX2 non disponible sur ce CPU — le test tournera en charge scalaire."
+                               Visibility="{Binding Avx2Supported, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
+
+                    <!-- Action buttons -->
+                    <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                        <Button Content="Lancer le test" Style="{StaticResource Button.Primary}"
+                                Command="{Binding StartCommand}" Padding="18,9"/>
+                        <Button Content="Arrêter" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0" Padding="18,9"
+                                Command="{Binding StopCommand}"
+                                Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}"/>
+                    </StackPanel>
+
+                    <!-- Live progress -->
+                    <StackPanel Margin="0,18,0,0"
+                                Visibility="{Binding IsRunning, Converter={StaticResource BoolToVisibility}}">
+                        <ProgressBar Height="6" Minimum="0" Maximum="100" Value="{Binding ProgressPercent}"
+                                     Background="{StaticResource Brush.Bg.Elevated}" Foreground="{StaticResource Brush.Gold}"
+                                     BorderThickness="0"/>
+                        <Grid Margin="0,8,0,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Text.Secondary}">
+                                    <Run Text="{Binding ElapsedSec, Mode=OneWay, StringFormat={}{0:0}}"/><Run Text=" / "/><Run Text="{Binding DurationSec, Mode=OneWay}"/><Run Text=" s"/>
+                                </TextBlock>
+                                <TextBlock Text="·" Style="{StaticResource Text.Muted}" Margin="8,0"/>
+                                <TextBlock Style="{StaticResource Text.Secondary}">
+                                    <Run Text="{Binding CurrentThreads, Mode=OneWay}"/><Run Text=" cœurs chargés"/>
+                                </TextBlock>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <TextBlock Text="{Binding ThroughputDisplay}" Style="{StaticResource Text.Mono}"/>
+                                <TextBlock Text="·" Style="{StaticResource Text.Muted}" Margin="8,0"/>
+                                <TextBlock Style="{StaticResource Text.Mono}">
+                                    <Run Text="{Binding ProgressPercent, Mode=OneWay, StringFormat={}{0:0}}"/><Run Text=" %"/>
+                                </TextBlock>
+                                <TextBlock Text="·" Style="{StaticResource Text.Muted}" Margin="8,0"
+                                           Visibility="{Binding HasErrors, Converter={StaticResource BoolToVisibility}}"/>
+                                <TextBlock Foreground="{StaticResource Brush.Danger}" FontFamily="{StaticResource Font.Mono}"
+                                           Visibility="{Binding HasErrors, Converter={StaticResource BoolToVisibility}}">
+                                    <Run Text="{Binding LiveErrors, Mode=OneWay}"/><Run Text=" err."/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Verdict ===== -->
+            <!-- STABLE -->
+            <Border Style="{StaticResource Card.Gold}"
+                    Visibility="{Binding Result.Passed, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                        <TextBlock Text="STABLE" FontFamily="{StaticResource Font.Display}" FontSize="40" FontWeight="Bold"
+                                   Foreground="{StaticResource Brush.Success}"/>
+                        <TextBlock Text="sur ce test rapide" Style="{StaticResource Text.Body}" VerticalAlignment="Bottom" Margin="12,0,0,8"/>
+                    </StackPanel>
+                    <WrapPanel>
+                        <Border Style="{StaticResource Cpu.Chip}"><StackPanel>
+                            <TextBlock Text="Durée" Style="{StaticResource Cpu.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.DurationSec, StringFormat={}{0:0.0} s}" Style="{StaticResource Cpu.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Cpu.Chip}"><StackPanel>
+                            <TextBlock Text="Threads" Style="{StaticResource Cpu.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.ThreadsUsed}" Style="{StaticResource Cpu.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Cpu.Chip}"><StackPanel>
+                            <TextBlock Text="Charge" Style="{StaticResource Cpu.Chip.Label}"/>
+                            <TextBlock Text="{Binding ResultWorkloadDisplay}" Style="{StaticResource Cpu.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Cpu.Chip}"><StackPanel>
+                            <TextBlock Text="Débit moyen" Style="{StaticResource Cpu.Chip.Label}"/>
+                            <TextBlock Text="{Binding ResultThroughputDisplay}" Style="{StaticResource Cpu.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Cpu.Chip}"><StackPanel>
+                            <TextBlock Text="Lots vérifiés" Style="{StaticResource Cpu.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.Batches, StringFormat={}{0:N0}}" Style="{StaticResource Cpu.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Cpu.Chip}"><StackPanel>
+                            <TextBlock Text="Erreurs" Style="{StaticResource Cpu.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.ErrorCount}" Style="{StaticResource Cpu.Chip.Value}"
+                                       Foreground="{StaticResource Brush.Success}"/></StackPanel></Border>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- INSTABLE -->
+            <Border Style="{StaticResource Card}" BorderBrush="{StaticResource Brush.Danger}" BorderThickness="1"
+                    Visibility="{Binding HasErrors, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                        <TextBlock Text="INSTABLE" FontFamily="{StaticResource Font.Display}" FontSize="40" FontWeight="Bold"
+                                   Foreground="{StaticResource Brush.Danger}"/>
+                        <TextBlock Text="le CPU a calculé faux sous charge" Style="{StaticResource Text.Body}" VerticalAlignment="Bottom" Margin="12,0,0,8"/>
+                    </StackPanel>
+                    <WrapPanel>
+                        <Border Style="{StaticResource Cpu.Chip}"><StackPanel>
+                            <TextBlock Text="Erreurs" Style="{StaticResource Cpu.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.ErrorCount}" Style="{StaticResource Cpu.Chip.Value}"
+                                       Foreground="{StaticResource Brush.Danger}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Cpu.Chip}"><StackPanel>
+                            <TextBlock Text="Durée" Style="{StaticResource Cpu.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.DurationSec, StringFormat={}{0:0.0} s}" Style="{StaticResource Cpu.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Cpu.Chip}"><StackPanel>
+                            <TextBlock Text="Threads" Style="{StaticResource Cpu.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.ThreadsUsed}" Style="{StaticResource Cpu.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Cpu.Chip}"><StackPanel>
+                            <TextBlock Text="Charge" Style="{StaticResource Cpu.Chip.Label}"/>
+                            <TextBlock Text="{Binding ResultWorkloadDisplay}" Style="{StaticResource Cpu.Chip.Value}"/></StackPanel></Border>
+                        <Border Style="{StaticResource Cpu.Chip}"><StackPanel>
+                            <TextBlock Text="Lots vérifiés" Style="{StaticResource Cpu.Chip.Label}"/>
+                            <TextBlock Text="{Binding Result.Batches, StringFormat={}{0:N0}}" Style="{StaticResource Cpu.Chip.Value}"/></StackPanel></Border>
+                    </WrapPanel>
+
+                    <Border Height="1" Background="{StaticResource Brush.Border.Subtle}" Margin="0,16"/>
+                    <TextBlock Text="ÉCHANTILLON D'ERREURS" Style="{StaticResource Text.Label}" Margin="0,0,0,8"/>
+                    <ItemsControl ItemsSource="{Binding Result.Errors}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,3">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Style="{StaticResource Text.Mono}" Foreground="{StaticResource Brush.Text.Secondary}"
+                                               Text="{Binding Thread, StringFormat={}cœur #{0}}"/>
+                                    <TextBlock Grid.Column="1" Style="{StaticResource Text.Mono}" Margin="0,0,12,0">
+                                        <Run Text="attendu " Foreground="{StaticResource Brush.Text.Muted}"/><Run Text="{Binding Expected, Mode=OneWay, StringFormat={}{0:X16}}" Foreground="{StaticResource Brush.Success}"/>
+                                    </TextBlock>
+                                    <TextBlock Grid.Column="2" Style="{StaticResource Text.Mono}">
+                                        <Run Text="lu " Foreground="{StaticResource Brush.Text.Muted}"/><Run Text="{Binding Actual, Mode=OneWay, StringFormat={}{0:X16}}" Foreground="{StaticResource Brush.Danger}"/><Run Text="  ·  à "/><Run Text="{Binding AtSec, Mode=OneWay, StringFormat={}{0:0.0}}" Foreground="{StaticResource Brush.Text.Muted}"/><Run Text="s" Foreground="{StaticResource Brush.Text.Muted}"/>
+                                    </TextBlock>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- INTERROMPU (cancelled, no errors) -->
+            <Border Style="{StaticResource Card}"
+                    Visibility="{Binding ShowCancelledNotice, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="INTERROMPU" FontFamily="{StaticResource Font.Display}" FontSize="30" FontWeight="Bold"
+                                   Foreground="{StaticResource Brush.Warning}"/>
+                        <TextBlock Text="résultat partiel, ne prouve rien" Style="{StaticResource Text.Body}" VerticalAlignment="Bottom" Margin="12,0,0,4"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Notes / honesty ===== -->
+            <Border Style="{StaticResource Card}"
+                    Visibility="{Binding HasNotes, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="NOTES" Style="{StaticResource Text.Label}" Margin="0,0,0,8"/>
+                    <ItemsControl ItemsSource="{Binding Result.Notes}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="0,3">
+                                    <TextBlock Text="•  " Foreground="{StaticResource Brush.Gold}" VerticalAlignment="Top"/>
+                                    <TextBlock Text="{Binding}" Style="{StaticResource Text.Secondary}" TextWrapping="Wrap" MaxWidth="860"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- ===== Share / export the result ===== -->
+            <Border Style="{StaticResource Card}"
+                    Visibility="{Binding HasResult, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="PARTAGER CE RÉSULTAT" Style="{StaticResource Text.Label}" Margin="0,0,0,6"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,0,0,14" TextWrapping="Wrap" MaxWidth="860" HorizontalAlignment="Left"
+                               Text="Copie ou exporte un rapport texte : verdict, paramètres, échantillon d'erreurs, et le rappel que ce test rapide ne remplace pas plusieurs heures de Prime95 / OCCT. Pratique pour appuyer un « stable » sur un thread d'overclocking."/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Copier le rapport" Style="{StaticResource Button.Secondary}" Padding="14,8"
+                                Command="{Binding CopyReportCommand}"/>
+                        <Button Content="Exporter…" Style="{StaticResource Button.Tertiary}" Margin="10,0,0,0" Padding="12,8"
+                                Command="{Binding ExportReportCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

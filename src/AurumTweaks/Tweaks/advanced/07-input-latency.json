@@ -1,0 +1,52 @@
+[
+  {
+    "id": "mouse-data-queue-size",
+    "name": { "fr": "Réduire le buffer souris (MouseDataQueueSize)", "en": "Reduce mouse buffer (MouseDataQueueSize)" },
+    "description": {
+      "fr": "Abaisse la file d'attente des paquets souris de 100 à 20. Moins de mise en buffer = légère réduction de la latence d'entrée. Valeur prudente (20) pour ne jamais perdre d'événements même à 8000 Hz.",
+      "en": "Lowers the mouse packet queue from 100 to 20. Less buffering = slightly lower input latency. Conservative value (20) so no events are lost even at 8000 Hz."
+    },
+    "tier": "Avance",
+    "category": "Gaming",
+    "risk": "Low",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Latence d'entrée souris très légèrement réduite",
+    "sources": [ "BoringBoredom", "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 45,
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Services\\mouclass\\Parameters",
+        "name": "MouseDataQueueSize", "valueType": "DWord",
+        "apply": "20", "revert": "100"
+      }
+    ]
+  },
+  {
+    "id": "keyboard-data-queue-size",
+    "name": { "fr": "Réduire le buffer clavier (KeyboardDataQueueSize)", "en": "Reduce keyboard buffer (KeyboardDataQueueSize)" },
+    "description": {
+      "fr": "Abaisse la file d'attente des paquets clavier de 100 à 20, dans le même esprit que pour la souris.",
+      "en": "Lowers the keyboard packet queue from 100 to 20, same idea as the mouse."
+    },
+    "tier": "Avance",
+    "category": "Gaming",
+    "risk": "Low",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Latence d'entrée clavier très légèrement réduite",
+    "sources": [ "BoringBoredom", "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 42,
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Services\\kbdclass\\Parameters",
+        "name": "KeyboardDataQueueSize", "valueType": "DWord",
+        "apply": "20", "revert": "100"
+      }
+    ]
+  }
+]

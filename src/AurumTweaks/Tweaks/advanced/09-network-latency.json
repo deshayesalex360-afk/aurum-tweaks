@@ -1,0 +1,128 @@
+[
+  {
+    "id": "qos-reserved-bandwidth-off",
+    "name": { "fr": "Libérer la bande passante réservée (QoS)", "en": "Free reserved bandwidth (QoS)" },
+    "description": {
+      "fr": "Met NonBestEffortLimit à 0 dans le Packet Scheduler. Windows ne réserve plus aucune part de bande passante au QoS — toute la liaison reste disponible pour le jeu et le téléchargement.",
+      "en": "Sets NonBestEffortLimit to 0 in the Packet Scheduler. Windows no longer reserves any bandwidth share for QoS — the full link stays available for gaming and downloads."
+    },
+    "tier": "Avance",
+    "category": "NetworkLatency",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Bande passante 100% disponible, throughput stable",
+    "sources": [ "FR33THY", "SpeedGuide", "Microsoft docs" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 58,
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Psched",
+        "name": "NonBestEffortLimit",
+        "valueType": "DWord",
+        "apply": "0",
+        "revert": "20"
+      }
+    ]
+  },
+  {
+    "id": "nic-disable-power-saving",
+    "name": { "fr": "Désactiver l'économie d'énergie de la carte réseau", "en": "Disable NIC power saving" },
+    "description": {
+      "fr": "Empêche Windows de mettre la carte réseau en veille (PnPCapabilities=24). Supprime le micro-stutter réseau et les pics de latence causés par le réveil de la NIC.",
+      "en": "Stops Windows from putting the network adapter to sleep (PnPCapabilities=24). Removes network micro-stutter and latency spikes caused by the NIC waking up."
+    },
+    "tier": "Avance",
+    "category": "NetworkLatency",
+    "risk": "Low",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Latence réseau plus régulière, fin des spikes de réveil",
+    "sources": [ "FR33THY", "Calypto", "BoringBoredom" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 60,
+    "warnings": { "fr": "Désactive aussi le Wake-on-LAN par économie d'énergie. Sur portable, augmente légèrement la conso au repos." },
+    "operations": [
+      {
+        "type": "PowerShell",
+        "script": "Get-ChildItem 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e972-e325-11ce-bfc1-08002be10318}' -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -match '^[0-9]{4}$' } | ForEach-Object { New-ItemProperty -Path $_.PSPath -Name 'PnPCapabilities' -Value 24 -PropertyType DWord -Force }",
+        "revertScript": "Get-ChildItem 'HKLM:\\SYSTEM\\CurrentControlSet\\Control\\Class\\{4d36e972-e325-11ce-bfc1-08002be10318}' -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName -match '^[0-9]{4}$' } | ForEach-Object { Set-ItemProperty -Path $_.PSPath -Name 'PnPCapabilities' -Value 0 -ErrorAction SilentlyContinue }"
+      }
+    ]
+  },
+  {
+    "id": "tcp-disable-rsc",
+    "name": { "fr": "Désactiver RSC (Receive Segment Coalescing)", "en": "Disable RSC (Receive Segment Coalescing)" },
+    "description": {
+      "fr": "Désactive le regroupement des segments reçus sur toutes les cartes réseau. RSC regroupe les paquets pour soulager le CPU mais ajoute de la latence — contre-productif en jeu compétitif.",
+      "en": "Disables receive-side packet coalescing on all adapters. RSC batches packets to offload the CPU but adds latency — counterproductive for competitive gaming."
+    },
+    "tier": "Avance",
+    "category": "NetworkLatency",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Latence de réception réduite, jitter plus faible",
+    "sources": [ "FR33THY", "Microsoft docs" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 55,
+    "operations": [
+      {
+        "type": "PowerShell",
+        "script": "Disable-NetAdapterRsc -Name '*' -ErrorAction SilentlyContinue",
+        "revertScript": "Enable-NetAdapterRsc -Name '*' -ErrorAction SilentlyContinue"
+      }
+    ]
+  },
+  {
+    "id": "disable-ipv6-transition-tech",
+    "name": { "fr": "Désactiver Teredo / 6to4 / ISATAP", "en": "Disable Teredo / 6to4 / ISATAP" },
+    "description": {
+      "fr": "Coupe les technologies de transition IPv6 (Teredo, 6to4, ISATAP) qui peuvent router ton trafic par des tunnels lents et ajouter de la latence. N'affecte pas l'IPv6 natif de ton FAI.",
+      "en": "Turns off IPv6 transition technologies (Teredo, 6to4, ISATAP) that can route traffic through slow tunnels and add latency. Does not affect your ISP's native IPv6."
+    },
+    "tier": "Avance",
+    "category": "NetworkLatency",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Évite les tunnels IPv6 lents, routage plus direct",
+    "sources": [ "SpeedGuide", "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 50,
+    "warnings": { "fr": "Quelques fonctions multijoueur Xbox/console anciennes utilisent Teredo — réversible si besoin." },
+    "operations": [
+      {
+        "type": "Cmd",
+        "script": "netsh interface teredo set state disabled & netsh interface 6to4 set state disabled & netsh interface isatap set state disabled",
+        "revertScript": "netsh interface teredo set state default & netsh interface 6to4 set state default & netsh interface isatap set state default"
+      }
+    ]
+  },
+  {
+    "id": "disable-llmnr",
+    "name": { "fr": "Désactiver LLMNR", "en": "Disable LLMNR" },
+    "description": {
+      "fr": "Désactive la résolution de noms multicast LLMNR. Réduit le bruit réseau multicast et ferme un vecteur d'attaque connu (spoofing LLMNR). La résolution DNS normale n'est pas affectée.",
+      "en": "Disables LLMNR multicast name resolution. Cuts multicast network noise and closes a known attack vector (LLMNR spoofing). Normal DNS resolution is unaffected."
+    },
+    "tier": "Avance",
+    "category": "NetworkLatency",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Moins de bruit multicast, surface d'attaque réduite",
+    "sources": [ "SpeedGuide", "Microsoft docs" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 45,
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SOFTWARE\\Policies\\Microsoft\\Windows NT\\DNSClient",
+        "name": "EnableMulticast",
+        "valueType": "DWord",
+        "apply": "0",
+        "revert": "1"
+      }
+    ]
+  }
+]

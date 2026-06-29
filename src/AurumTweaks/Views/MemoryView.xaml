@@ -1,0 +1,133 @@
+<UserControl x:Class="AurumTweaks.Views.MemoryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Mémoire vive" Style="{StaticResource Text.Display}"/>
+            <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"
+                       Text="Composition réelle de ta mémoire physique, lue dans les listes de pages du noyau (les mêmes chiffres que RAMMap, exacts et indépendants de la langue de Windows). Tu peux aussi vider les caches mémoire — une action réelle et mesurée, pas un « booster de RAM » magique."/>
+
+            <!-- Composition -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Actualiser" Style="{StaticResource Button.Primary}" Command="{Binding RefreshCommand}"/>
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource Text.Gold}" FontSize="28" FontWeight="Bold" Margin="0,16,0,0"
+                               Text="{Binding Composition.TotalDisplay}"/>
+                    <TextBlock Text="mémoire physique totale" Style="{StaticResource Text.Muted}"/>
+
+                    <!-- Real composition buckets: in use / available / standby cache / free / modified -->
+                    <StackPanel Margin="0,14,0,0">
+                        <Grid Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="64"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="En cours d'utilisation" Style="{StaticResource Text.Body}"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Composition.InUseDisplay}" Style="{StaticResource Text.Body}" Margin="0,0,12,0"/>
+                            <TextBlock Grid.Column="2" Text="{Binding Composition.InUsePercentDisplay}" Style="{StaticResource Text.Muted}" TextAlignment="Right"/>
+                        </Grid>
+                        <Grid Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="64"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Disponible" Style="{StaticResource Text.Body}"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Composition.AvailableDisplay}" Style="{StaticResource Text.Body}" Margin="0,0,12,0"/>
+                            <TextBlock Grid.Column="2" Text="{Binding Composition.AvailablePercentDisplay}" Style="{StaticResource Text.Muted}" TextAlignment="Right"/>
+                        </Grid>
+                        <Grid Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="64"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="En cache (standby)" Style="{StaticResource Text.Body}"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Composition.StandbyDisplay}" Style="{StaticResource Text.Body}" Margin="0,0,12,0"/>
+                            <TextBlock Grid.Column="2" Text="{Binding Composition.StandbyPercentDisplay}" Style="{StaticResource Text.Muted}" TextAlignment="Right"/>
+                        </Grid>
+                        <Grid Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="64"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Libre" Style="{StaticResource Text.Body}"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Composition.FreeDisplay}" Style="{StaticResource Text.Body}" Margin="0,0,12,0"/>
+                            <TextBlock Grid.Column="2" Text="{Binding Composition.FreePercentDisplay}" Style="{StaticResource Text.Muted}" TextAlignment="Right"/>
+                        </Grid>
+                        <Grid Margin="0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="64"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Modifiée (en attente d'écriture)" Style="{StaticResource Text.Body}"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Composition.ModifiedDisplay}" Style="{StaticResource Text.Body}" Margin="0,0,12,0"/>
+                            <TextBlock Grid.Column="2" Text="{Binding Composition.ModifiedPercentDisplay}" Style="{StaticResource Text.Muted}" TextAlignment="Right"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,14,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
+                               Text="« En cache (standby) » n'est pas de la mémoire gaspillée : Windows y garde des fichiers récents pour accélérer les relancements, et la libère instantanément si une application en a besoin. Le standby et le libre forment ensemble la mémoire « disponible »."/>
+                </StackPanel>
+            </Border>
+
+            <!-- Flush actions -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="Vider les caches mémoire" Style="{StaticResource Text.H3}"/>
+                    <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,6,0,0" TextWrapping="Wrap"
+                               Text="Ces actions exécutent une vraie commande noyau, et le résultat est mesuré (composition relue avant/après). À lire avant de cliquer : vider le cache standby NE libère PAS de mémoire « disponible » en plus — le standby y était déjà compté — et n'apporte aucun gain de FPS. C'est un outil de diagnostic (benchmark à froid, gros chargement à venir), pas une optimisation."/>
+
+                    <ItemsControl ItemsSource="{Binding Flushes}" Margin="0,12,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card.Compact}" Margin="0,4">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                            <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Body}"/>
+                                            <TextBlock Text="{Binding Advice}" Style="{StaticResource Text.Muted}"
+                                                       FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                        </StackPanel>
+
+                                        <Button Grid.Column="1" VerticalAlignment="Center"
+                                                Content="Vider" Style="{StaticResource Button.Tertiary}"
+                                                Command="{Binding DataContext.FlushCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Native complements -->
+            <Border Style="{StaticResource Card.Subtle}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="Pour aller plus loin" Style="{StaticResource Text.H3}"/>
+                    <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,6,0,0" TextWrapping="Wrap"
+                               Text="Le Moniteur de ressources (onglet Mémoire) affiche la même répartition standby / libre / modifiée sous forme de graphe en temps réel, et le Gestionnaire des tâches montre l'« utilisée / disponible » d'où viennent ces chiffres."/>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Moniteur de ressources" Style="{StaticResource Button.Secondary}"
+                                Command="{Binding OpenResourceMonitorCommand}"/>
+                        <Button Content="Gestionnaire des tâches" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding OpenTaskManagerCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

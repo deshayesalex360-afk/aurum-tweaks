@@ -1,0 +1,60 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Premium toggle switch (gold accent) -->
+    <Style x:Key="Toggle.Aurum" TargetType="CheckBox">
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <Grid>
+                        <Border x:Name="Track"
+                                Width="44" Height="22"
+                                CornerRadius="11"
+                                Background="{StaticResource Brush.Bg.Elevated}"
+                                BorderBrush="{StaticResource Brush.Border.Default}"
+                                BorderThickness="1"
+                                HorizontalAlignment="Left">
+                            <Border x:Name="Thumb"
+                                    Width="16" Height="16"
+                                    CornerRadius="8"
+                                    Background="{StaticResource Brush.Text.Muted}"
+                                    HorizontalAlignment="Left" VerticalAlignment="Center"
+                                    Margin="3,0,0,0">
+                                <Border.RenderTransform>
+                                    <TranslateTransform X="0"/>
+                                </Border.RenderTransform>
+                            </Border>
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Track" Property="Background" Value="{StaticResource Brush.Gold.Gradient}"/>
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource Brush.Gold}"/>
+                            <Setter TargetName="Thumb" Property="Background" Value="#FF0A0A0C"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Thumb"
+                                                         Storyboard.TargetProperty="(Border.RenderTransform).(TranslateTransform.X)"
+                                                         To="22" Duration="0:0:0.18"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Thumb"
+                                                         Storyboard.TargetProperty="(Border.RenderTransform).(TranslateTransform.X)"
+                                                         To="0" Duration="0:0:0.18"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+</ResourceDictionary>

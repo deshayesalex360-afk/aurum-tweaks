@@ -1,0 +1,90 @@
+[
+  {
+    "id": "disable-xbox-services",
+    "name": { "fr": "Désactiver les services Xbox", "en": "Disable Xbox services" },
+    "description": {
+      "fr": "Désactive XblAuthManager, XblGameSave, XboxGipSvc, XboxNetApiSvc. Inutiles si tu ne joues pas à des jeux Xbox/Game Pass.",
+      "en": "Disables XblAuthManager, XblGameSave, XboxGipSvc, XboxNetApiSvc. Useless if you don't play Xbox/Game Pass games."
+    },
+    "tier": "Avance",
+    "category": "Services",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Libère 50-100 MB RAM, quelques processus en moins",
+    "sources": [ "FR33THY", "Atlas OS", "ChrisTitus" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      { "type": "Service", "serviceName": "XblAuthManager", "startupApply": "Disabled", "startupRevert": "Manual" },
+      { "type": "Service", "serviceName": "XblGameSave", "startupApply": "Disabled", "startupRevert": "Manual" },
+      { "type": "Service", "serviceName": "XboxGipSvc", "startupApply": "Disabled", "startupRevert": "Manual" },
+      { "type": "Service", "serviceName": "XboxNetApiSvc", "startupApply": "Disabled", "startupRevert": "Manual" }
+    ]
+  },
+  {
+    "id": "disable-windows-search",
+    "name": { "fr": "Désactiver Windows Search (recherche)", "en": "Disable Windows Search" },
+    "description": {
+      "fr": "Désactive l'indexation Windows. À utiliser SEULEMENT si tu n'utilises pas la recherche Explorer. Très gros gain RAM/CPU.",
+      "en": "Disables Windows indexing. Use ONLY if you don't use Explorer search. Big RAM/CPU gain."
+    },
+    "tier": "Avance",
+    "category": "Services",
+    "risk": "Medium",
+    "reversible": true,
+    "expectedImpact": "Libère 100-400 MB RAM, supprime spikes CPU indexation",
+    "sources": [ "Atlas OS", "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "warnings": { "fr": "Tu perds la recherche dans l'Explorateur Windows." },
+    "operations": [
+      { "type": "Service", "serviceName": "WSearch", "startupApply": "Disabled", "startupRevert": "DelayedAuto" }
+    ]
+  },
+  {
+    "id": "disable-superfetch-ssd",
+    "name": { "fr": "Désactiver Superfetch/SysMain (SSD only)", "en": "Disable Superfetch/SysMain (SSD only)" },
+    "description": {
+      "fr": "Désactive SysMain. Sur SSD, ce service est inutile et provoque parfois des spikes I/O.",
+      "en": "Disables SysMain. On SSD, this service is useless and sometimes causes I/O spikes."
+    },
+    "tier": "Avance",
+    "category": "Services",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Réduit spikes I/O, libère ~80 MB RAM",
+    "sources": [ "FR33THY", "marvingdt/opti-pc" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "applicability": { "ssdOnly": true },
+    "warnings": { "fr": "À NE PAS faire sur HDD système." },
+    "operations": [
+      { "type": "Service", "serviceName": "SysMain", "startupApply": "Disabled", "startupRevert": "Automatic" }
+    ]
+  },
+  {
+    "id": "remove-bloat-appx",
+    "name": { "fr": "Retirer les apps préinstallées (Bing, Xbox, Solitaire, etc.)", "en": "Remove pre-installed bloat apps" },
+    "description": {
+      "fr": "Retire les apps modernes inutiles : Bing News/Weather, Xbox apps, Solitaire, Office Hub, Feedback Hub, Maps, Your Phone, etc.",
+      "en": "Removes useless modern apps: Bing News/Weather, Xbox apps, Solitaire, Office Hub, Feedback Hub, Maps, Your Phone, etc."
+    },
+    "tier": "Avance",
+    "category": "Debloat",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Libère 1-3 GB disque et 100+ MB RAM, nombreux processus en moins",
+    "sources": [ "Tiny11", "Atlas OS", "ChrisTitus" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      { "type": "AppX", "appxPackage": "bingnews" },
+      { "type": "AppX", "appxPackage": "bingweather" },
+      { "type": "AppX", "appxPackage": "officehub" },
+      { "type": "AppX", "appxPackage": "solitaire" },
+      { "type": "AppX", "appxPackage": "3dbuilder" },
+      { "type": "AppX", "appxPackage": "windowsmaps" },
+      { "type": "AppX", "appxPackage": "windowsfeedbackhub" },
+      { "type": "AppX", "appxPackage": "getstarted" },
+      { "type": "AppX", "appxPackage": "skypeapp" },
+      { "type": "AppX", "appxPackage": "people" },
+      { "type": "AppX", "appxPackage": "YourPhone" }
+    ]
+  }
+]

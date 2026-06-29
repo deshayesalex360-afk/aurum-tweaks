@@ -1,0 +1,83 @@
+[
+  {
+    "id": "win32-priority-separation-gaming",
+    "name": { "fr": "Quantums CPU orientés jeu (Win32PrioritySeparation)", "en": "Gaming CPU quantums (Win32PrioritySeparation)" },
+    "description": {
+      "fr": "Règle Win32PrioritySeparation sur 38 (0x26) : quantums courts et variables avec un boost marqué de la fenêtre active. Le jeu au premier plan reçoit plus de temps CPU, au prix d'un léger surcoût pour le background.",
+      "en": "Sets Win32PrioritySeparation to 38 (0x26): short, variable quantums with a strong foreground boost. The focused game gets more CPU time at a small background cost."
+    },
+    "tier": "Avance",
+    "category": "Gaming",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Frametimes plus réactifs, surtout en jeu CPU-bound",
+    "sources": [ "FR33THY", "BoringBoredom", "Calypto" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 60,
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Control\\PriorityControl",
+        "name": "Win32PrioritySeparation", "valueType": "DWord",
+        "apply": "38", "revert": "2"
+      }
+    ]
+  },
+  {
+    "id": "disable-fault-tolerant-heap",
+    "name": { "fr": "Désactiver le Fault Tolerant Heap (FTH)", "en": "Disable Fault Tolerant Heap (FTH)" },
+    "description": {
+      "fr": "Désactive le FTH, un mécanisme qui « ralentit » silencieusement les applications qui ont planté par le passé en intercalant des protections mémoire. Utile si un jeu/app se met soudainement à bégayer.",
+      "en": "Disables the FTH, a mechanism that silently slows apps that crashed before by inserting heap mitigations. Useful when a game/app suddenly starts stuttering."
+    },
+    "tier": "Avance",
+    "category": "Advanced",
+    "risk": "Low",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Élimine des ralentissements invisibles sur apps ayant déjà crashé",
+    "sources": [ "Microsoft docs", "Calypto" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 40,
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SOFTWARE\\Microsoft\\FTH",
+        "name": "Enabled", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      }
+    ]
+  },
+  {
+    "id": "disable-superfetch-prefetch-ssd",
+    "name": { "fr": "Désactiver Superfetch/Prefetch (SSD)", "en": "Disable Superfetch/Prefetch (SSD)" },
+    "description": {
+      "fr": "Sur un SSD/NVMe, le pré-chargement Superfetch/Prefetch n'apporte rien (latence d'accès quasi nulle) et génère des écritures + de l'I/O background inutiles. À ne PAS faire sur disque mécanique.",
+      "en": "On an SSD/NVMe, Superfetch/Prefetch prefetching brings nothing (near-zero access latency) and only adds background writes/IO. Do NOT do this on a mechanical drive."
+    },
+    "tier": "Avance",
+    "category": "Services",
+    "risk": "Low",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Moins d'I/O background, écritures SSD réduites",
+    "sources": [ "FR33THY", "Atlas OS", "marvingdt/opti-pc" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "applicability": { "ssdOnly": true },
+    "priority": 50,
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management\\PrefetchParameters",
+        "name": "EnableSuperfetch", "valueType": "DWord",
+        "apply": "0", "revert": "3"
+      },
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management\\PrefetchParameters",
+        "name": "EnablePrefetcher", "valueType": "DWord",
+        "apply": "0", "revert": "3"
+      }
+    ]
+  }
+]

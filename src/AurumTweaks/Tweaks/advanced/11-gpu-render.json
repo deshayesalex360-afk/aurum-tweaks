@@ -1,0 +1,59 @@
+[
+  {
+    "id": "disable-mpo",
+    "name": { "fr": "Désactiver MPO (Multi-Plane Overlay)", "en": "Disable MPO (Multi-Plane Overlay)" },
+    "description": {
+      "fr": "Désactive le Multi-Plane Overlay du compositeur Windows (OverlayTestMode=5). Corrige les scintillements, flashs noirs et micro-saccades fréquents sur pilotes NVIDIA/AMD récents en multi-écran ou avec navigateur ouvert.",
+      "en": "Disables the Windows compositor's Multi-Plane Overlay (OverlayTestMode=5). Fixes the flickering, black flashes and micro-stutter commonly seen on recent NVIDIA/AMD drivers with multi-monitor or a browser open."
+    },
+    "tier": "Avance",
+    "category": "Gaming",
+    "risk": "Low",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Fin des scintillements/flashs noirs, frametimes plus propres",
+    "sources": [ "NVIDIA forums", "AMD community", "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 52,
+    "warnings": { "fr": "Peut très légèrement augmenter la conso GPU au repos (le compositeur ne délègue plus certains plans au matériel). Réversible." },
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SOFTWARE\\Microsoft\\Windows\\Dwm",
+        "name": "OverlayTestMode",
+        "valueType": "DWord",
+        "apply": "5",
+        "revert": null
+      }
+    ]
+  },
+  {
+    "id": "enable-windowed-game-optimizations",
+    "name": { "fr": "Optimisations pour les jeux fenêtrés (Win11)", "en": "Optimizations for windowed games (Win11)" },
+    "description": {
+      "fr": "Active la fonctionnalité Windows 11 « Optimisations pour les jeux fenêtrés » (SwapEffectUpgradeEnable=1). Bascule les jeux DirectX en borderless/fenêtré sur un chemin de présentation type flip model : latence réduite, Auto HDR et VRR disponibles, proche du plein écran exclusif.",
+      "en": "Enables the Windows 11 'Optimizations for windowed games' feature (SwapEffectUpgradeEnable=1). Routes DirectX games running borderless/windowed onto a flip-model presentation path: lower latency, Auto HDR and VRR available, close to exclusive fullscreen."
+    },
+    "tier": "Avance",
+    "category": "Gaming",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Latence borderless réduite, VRR/Auto HDR en fenêtré",
+    "sources": [ "Microsoft docs", "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "applicability": { "requiresWin11": true },
+    "priority": 56,
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "Software\\Microsoft\\DirectX\\UserGpuPreferences",
+        "name": "DirectXUserGlobalSettings",
+        "valueType": "String",
+        "apply": "SwapEffectUpgradeEnable=1;",
+        "revert": "SwapEffectUpgradeEnable=0;"
+      }
+    ]
+  }
+]

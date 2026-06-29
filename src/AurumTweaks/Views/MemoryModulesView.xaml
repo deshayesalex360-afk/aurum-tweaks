@@ -1,0 +1,150 @@
+<UserControl x:Class="AurumTweaks.Views.MemoryModulesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Barrettes mémoire" Style="{StaticResource Text.Display}"/>
+            <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"
+                       Text="Inventaire des modules RAM physiques tels que Windows les rapporte (Win32_PhysicalMemory) : slot, fabricant, référence, type DDRx, capacité et vitesse réelle. Page en lecture seule — aucune écriture. Le verdict « profil XMP/EXPO » est indicatif : Windows expose une vitesse « configurée » et une vitesse « nominale », mais cette nominale est souvent la base JEDEC et non la note XMP/EXPO du kit ; la vérité se trouve dans le BIOS. Le profil mémoire lui-même s'active dans le BIOS, pas ici."/>
+
+            <!-- Synthesis: totals + the honest, indicative XMP/EXPO verdict + real in-app hand-offs -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Synthèse" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+
+                    <WrapPanel Margin="0,12,0,0">
+                        <Border Style="{StaticResource MetricChip}">
+                            <StackPanel>
+                                <TextBlock Text="Type" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                <TextBlock Text="{Binding TypeDisplay}" Style="{StaticResource Text.Body}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChip}">
+                            <StackPanel>
+                                <TextBlock Text="Total installé" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                <TextBlock Text="{Binding TotalDisplay}" Style="{StaticResource Text.Body}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChip}">
+                            <StackPanel>
+                                <TextBlock Text="Barrettes / slots" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                <TextBlock Text="{Binding SlotsDisplay}" Style="{StaticResource Text.Body}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChip}">
+                            <StackPanel>
+                                <TextBlock Text="Vitesse configurée" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                <TextBlock Text="{Binding SpeedDisplay}" Style="{StaticResource Text.Body}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChip}">
+                            <StackPanel>
+                                <TextBlock Text="Vitesse nominale" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                <TextBlock Text="{Binding RatedDisplay}" Style="{StaticResource Text.Body}"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource MetricChip}">
+                            <StackPanel>
+                                <TextBlock Text="Canaux (indicatif)" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                <TextBlock Text="{Binding ChannelDisplay}" Style="{StaticResource Text.Body}"/>
+                            </StackPanel>
+                        </Border>
+                    </WrapPanel>
+
+                    <!-- Verdict line: colored dot mirrors DriveHealth's honest tri-state indicator -->
+                    <StackPanel Orientation="Horizontal" Margin="0,16,0,0">
+                        <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,2,8,0"
+                                 Fill="{StaticResource Brush.Warning}"
+                                 Visibility="{Binding ProfileWarn, Converter={StaticResource BoolToVisibility}}"/>
+                        <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,2,8,0"
+                                 Fill="{StaticResource Brush.Success}"
+                                 Visibility="{Binding ProfileOk, Converter={StaticResource BoolToVisibility}}"/>
+                        <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,2,8,0"
+                                 Fill="{StaticResource Brush.Text.Muted}"
+                                 Visibility="{Binding ProfileUnknown, Converter={StaticResource BoolToVisibility}}"/>
+                        <TextBlock Text="{Binding ProfileHeadline}" Style="{StaticResource Text.Secondary}"
+                                   FontWeight="SemiBold" TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding ProfileDetail}" Style="{StaticResource Text.Muted}"
+                               Margin="0,6,0,0" TextWrapping="Wrap"/>
+
+                    <WrapPanel Margin="0,14,0,0">
+                        <Button Content="Actualiser" Style="{StaticResource Button.Secondary}"
+                                Command="{Binding RefreshCommand}"/>
+                        <Button Content="Ouvrir le guide BIOS (XMP/EXPO)" Style="{StaticResource Button.Primary}" Margin="10,0,0,0"
+                                Command="{Binding GoToBiosCommand}"/>
+                        <Button Content="Calculatrice timings RAM" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding GoToRamCalcCommand}"/>
+                        <Button Content="Copier le rapport" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding CopyReportCommand}"
+                                ToolTip="Copie l'inventaire mémoire (type, total, vitesse, canaux, barrettes) en texte — lecture seule, jamais envoyé."/>
+                    </WrapPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Per-module inventory -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="Barrettes installées" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,8,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding HasModules, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
+                               Text="Aucun module rapporté par Windows. Lancez l'application en administrateur pour interroger le SPD, ou utilisez « Actualiser »."/>
+
+                    <ItemsControl ItemsSource="{Binding Modules}" Margin="0,12,0,0"
+                                  Visibility="{Binding HasModules, Converter={StaticResource BoolToVisibility}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card.Compact}" Margin="0,5">
+                                    <StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                                <TextBlock Text="{Binding Identity}" Style="{StaticResource Text.Body}" FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                    <TextBlock Text="{Binding Slot}" Style="{StaticResource Text.Muted}"/>
+                                                    <TextBlock Text=" · " Style="{StaticResource Text.Muted}"/>
+                                                    <TextBlock Text="{Binding Type}" Style="{StaticResource Text.Muted}"/>
+                                                    <TextBlock Text=" · " Style="{StaticResource Text.Muted}"/>
+                                                    <TextBlock Text="{Binding Capacity}" Style="{StaticResource Text.Muted}"/>
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top"
+                                                        Visibility="{Binding BelowRated, Converter={StaticResource BoolToVisibility}}">
+                                                <Ellipse Width="9" Height="9" Fill="{StaticResource Brush.Warning}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                <TextBlock Text="Sous la nominale" Foreground="{StaticResource Brush.Warning}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <WrapPanel Margin="0,10,0,0">
+                                            <Border Style="{StaticResource MetricChip}">
+                                                <StackPanel>
+                                                    <TextBlock Text="Vitesse" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                                    <TextBlock Text="{Binding SpeedDisplay}" Style="{StaticResource Text.Body}"/>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Style="{StaticResource MetricChip}"
+                                                    Visibility="{Binding HasBankLabel, Converter={StaticResource BoolToVisibility}}">
+                                                <StackPanel>
+                                                    <TextBlock Text="Banque" Style="{StaticResource Text.Muted}" FontSize="10"/>
+                                                    <TextBlock Text="{Binding BankLabel}" Style="{StaticResource Text.Body}"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

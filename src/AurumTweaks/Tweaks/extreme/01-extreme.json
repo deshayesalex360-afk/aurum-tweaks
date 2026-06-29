@@ -1,0 +1,165 @@
+[
+  {
+    "id": "disable-vbs-hvci",
+    "name": { "fr": "Désactiver VBS + Memory Integrity (HVCI)", "en": "Disable VBS + Memory Integrity (HVCI)" },
+    "description": {
+      "fr": "Désactive Virtualization Based Security et HVCI. Gain notable en jeu mais réduit la sécurité contre les rootkits kernel.",
+      "en": "Disables VBS and HVCI. Notable FPS gain but reduces kernel rootkit protection."
+    },
+    "tier": "Extreme",
+    "category": "Security",
+    "risk": "High",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Gain FPS variable selon le jeu (CPU-bound)",
+    "sources": [ "Hone", "Atlas OS", "TechPowerUp benchmarks 2023" ],
+    "antiCheat": {
+      "vanguard": "Banned",
+      "easyAntiCheat": "Risky",
+      "battlEye": "Risky",
+      "faceit": "Risky"
+    },
+    "warnings": {
+      "fr": "Riot Vanguard refuse de démarrer si HVCI est désactivé. FACEIT AC peut refuser le launch. À NE PAS appliquer si tu joues à Valorant ou utilises FACEIT."
+    },
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Control\\DeviceGuard",
+        "name": "EnableVirtualizationBasedSecurity",
+        "valueType": "DWord",
+        "apply": "0",
+        "revert": "1"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Control\\DeviceGuard\\Scenarios\\HypervisorEnforcedCodeIntegrity",
+        "name": "Enabled",
+        "valueType": "DWord",
+        "apply": "0",
+        "revert": "1"
+      }
+    ]
+  },
+  {
+    "id": "bcdedit-disable-dynamic-tick",
+    "name": { "fr": "BCDEdit : disable dynamic tick", "en": "BCDEdit: disable dynamic tick" },
+    "description": {
+      "fr": "Force le CPU à ticker à fréquence constante. Améliore la latence mais augmente la conso et la chaleur idle.",
+      "en": "Forces the CPU tick to constant frequency. Improves latency but increases idle power/heat."
+    },
+    "tier": "Extreme",
+    "category": "Advanced",
+    "risk": "Medium",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Latence DPC plus stable",
+    "sources": [ "FR33THY", "BCDEditTweaks" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "warnings": { "fr": "Augmente conso idle et chaleur. Pas pour les laptops sur batterie." },
+    "operations": [
+      {
+        "type": "Bcdedit",
+        "script": "/set disabledynamictick yes",
+        "revertScript": "/deletevalue disabledynamictick"
+      }
+    ]
+  },
+  {
+    "id": "tsc-sync-enhanced",
+    "name": { "fr": "BCDEdit : TSC sync Enhanced", "en": "BCDEdit: TSC sync Enhanced" },
+    "description": {
+      "fr": "Active la synchronisation TSC enhanced. Améliore la précision des timers multi-socket et CPU multi-CCD (Ryzen 9 X3D).",
+      "en": "Enables TSC enhanced sync. Improves timer accuracy on multi-socket and multi-CCD CPUs (Ryzen 9 X3D)."
+    },
+    "tier": "Extreme",
+    "category": "Advanced",
+    "risk": "Low",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Précision timers améliorée sur multi-CCD",
+    "sources": [ "FR33THY", "BCDEditTweaks" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Bcdedit",
+        "script": "/set tscsyncpolicy Enhanced",
+        "revertScript": "/deletevalue tscsyncpolicy"
+      }
+    ]
+  },
+  {
+    "id": "disable-paging-executive",
+    "name": { "fr": "Garder le kernel en RAM (DisablePagingExecutive)", "en": "Keep kernel in RAM (DisablePagingExecutive)" },
+    "description": {
+      "fr": "Empêche Windows de paginer le kernel sur disque. Améliore la réactivité mais augmente la conso RAM.",
+      "en": "Prevents Windows from paging the kernel. Improves responsiveness but increases RAM usage."
+    },
+    "tier": "Extreme",
+    "category": "Advanced",
+    "risk": "Medium",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Réactivité kernel ++, conso RAM ~200-500 MB",
+    "sources": [ "FR33THY", "ChrisTitus" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "warnings": { "fr": "Désactiver si tu as moins de 16 GB de RAM." },
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management",
+        "name": "DisablePagingExecutive",
+        "valueType": "DWord",
+        "apply": "1",
+        "revert": "0"
+      }
+    ]
+  },
+  {
+    "id": "disable-mouse-acceleration",
+    "name": { "fr": "Désactiver l'accélération de la souris", "en": "Disable mouse acceleration" },
+    "description": {
+      "fr": "Désactive complètement la 'Précision améliorée du pointeur' (mouse acceleration). Essentiel pour le compétitif.",
+      "en": "Fully disables Enhance Pointer Precision (mouse acceleration). Essential for competitive play."
+    },
+    "tier": "Extreme",
+    "category": "Gaming",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Réponse souris linéaire, requis compétitif",
+    "sources": [ "FR33THY", "communauté FPS" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "Control Panel\\Mouse",
+        "name": "MouseSpeed",
+        "valueType": "String",
+        "apply": "0",
+        "revert": "1"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "Control Panel\\Mouse",
+        "name": "MouseThreshold1",
+        "valueType": "String",
+        "apply": "0",
+        "revert": "6"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "Control Panel\\Mouse",
+        "name": "MouseThreshold2",
+        "valueType": "String",
+        "apply": "0",
+        "revert": "10"
+      }
+    ]
+  }
+]

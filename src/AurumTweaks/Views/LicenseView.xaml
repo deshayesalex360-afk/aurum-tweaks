@@ -1,0 +1,99 @@
+<UserControl x:Class="AurumTweaks.Views.LicenseView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32" MaxWidth="760" HorizontalAlignment="Left">
+            <TextBlock Text="Licence" Style="{StaticResource Text.Display}"/>
+            <TextBlock Text="L'activation est 100 % hors-ligne : aucune connexion, aucun compte. Votre clé est vérifiée localement et stockée dans %LOCALAPPDATA%\AurumTweaks."
+                       Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"/>
+
+            <!-- Current edition + honest status -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="VOTRE ÉDITION" Style="{StaticResource Text.Label}" Margin="0,0,0,8"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding EditionLabel}" FontFamily="{StaticResource Font.Display}"
+                                   FontSize="22" FontWeight="SemiBold"
+                                   Foreground="{StaticResource Brush.Gold.Bright}" VerticalAlignment="Center"/>
+                        <Border Style="{StaticResource Badge.Gold}" Margin="10,2,0,0" Padding="6,2" VerticalAlignment="Center"
+                                Visibility="{Binding IsPremium, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="PREMIUM" FontSize="9" FontWeight="Bold" Foreground="{StaticResource Brush.Gold.Bright}"/>
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Text="{Binding Summary}" Style="{StaticResource Text.Body}" TextWrapping="Wrap" Margin="0,10,0,0"/>
+                    <TextBlock Text="{Binding StatusLine}" Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,8,0,0"/>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0"
+                                Visibility="{Binding LicensedTo, Converter={StaticResource StringNotEmptyToVisibility}}">
+                        <TextBlock Text="Émise à&#160;:" Style="{StaticResource Text.Muted}"/>
+                        <TextBlock Text="{Binding LicensedTo}" Style="{StaticResource Text.Mono}" Margin="6,0,0,0"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding ExpiryLine}" Style="{StaticResource Text.Muted}" Margin="0,6,0,0"
+                               Visibility="{Binding ExpiryLine, Converter={StaticResource StringNotEmptyToVisibility}}"/>
+
+                    <Border Background="{StaticResource Brush.Gold.Subtle}" CornerRadius="6" Padding="12,8" Margin="0,14,0,0"
+                            Visibility="{Binding ActivationMessage, Converter={StaticResource StringNotEmptyToVisibility}}">
+                        <TextBlock Text="{Binding ActivationMessage}" Style="{StaticResource Text.Body}" TextWrapping="Wrap"/>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <!-- As-shipped, no paid tier: everything is already unlocked. Stated plainly, never implying a paywall. -->
+            <Border Style="{StaticResource Card}"
+                    Visibility="{Binding ShowUnlockedNote, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="TOUT EST DÉBLOQUÉ" Style="{StaticResource Text.Label}" Margin="0,0,0,8"/>
+                    <TextBlock Style="{StaticResource Text.Body}" TextWrapping="Wrap"
+                               Text="Cette version donne accès à l'intégralité des fonctionnalités, sans paiement, sans compte et sans limite de temps. Il n'y a rien à activer."/>
+                </StackPanel>
+            </Border>
+
+            <!-- Configured + Free: the activation box and the exact perks Premium adds (same catalogue the gates read). -->
+            <Border Style="{StaticResource Card}"
+                    Visibility="{Binding ShowActivation, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="ACTIVER UNE CLÉ PREMIUM" Style="{StaticResource Text.Label}" Margin="0,0,0,8"/>
+                    <TextBlock Style="{StaticResource Text.Body}" TextWrapping="Wrap" Margin="0,0,0,10"
+                               Text="Collez la clé reçue lors de votre achat, puis cliquez sur Activer."/>
+                    <TextBox Text="{Binding TokenInput, UpdateSourceTrigger=PropertyChanged}"
+                             Background="{StaticResource Brush.Bg.Elevated}"
+                             Foreground="{StaticResource Brush.Text.Primary}"
+                             BorderBrush="{StaticResource Brush.Border.Default}"
+                             FontFamily="{StaticResource Font.Mono}" FontSize="12"
+                             Padding="10,8" Height="74" TextWrapping="Wrap" AcceptsReturn="True"
+                             VerticalScrollBarVisibility="Auto" VerticalContentAlignment="Top"/>
+                    <Button Content="Activer" Style="{StaticResource Button.Primary}" HorizontalAlignment="Left"
+                            Margin="0,12,0,0" Command="{Binding ActivateCommand}"/>
+
+                    <Border Height="1" Background="{StaticResource Brush.Border.Subtle}" Margin="0,18,0,14"/>
+
+                    <TextBlock Text="Premium débloque :" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                    <ItemsControl ItemsSource="{Binding PremiumFeatures}" Margin="0,8,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="0,3">
+                                    <TextBlock Text="•" Foreground="{StaticResource Brush.Gold}" Margin="0,0,8,0"/>
+                                    <TextBlock Text="{Binding}" Style="{StaticResource Text.Body}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Premium: a way back to Free. Not destructive (no data touched), so a quiet ghost button, with the honest
+                 note that the key stays valid and can be re-activated. -->
+            <Border Style="{StaticResource Card}"
+                    Visibility="{Binding IsPremium, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="GÉRER" Style="{StaticResource Text.Label}" Margin="0,0,0,8"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,0,0,12"
+                               Text="Retirer la licence repasse l'application en édition Gratuite sur ce PC. Votre clé reste valide : vous pourrez la réactiver à tout moment."/>
+                    <Button Content="Retirer la licence" Style="{StaticResource Button.Ghost}" HorizontalAlignment="Left"
+                            Command="{Binding DeactivateCommand}"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

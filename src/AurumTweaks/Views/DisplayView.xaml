@@ -1,0 +1,128 @@
+<UserControl x:Class="AurumTweaks.Views.DisplayView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Affichage" Style="{StaticResource Text.Display}"/>
+            <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"
+                       Text="Mode réel de chaque écran, lu via l'API d'affichage de Windows (la même source que « Paramètres d'affichage avancés ») — pas l'estimation par GPU du tableau de bord. Le piège classique : une dalle 144/240 Hz laissée à 60 Hz. Ici tu changes la fréquence de rafraîchissement à la résolution ACTUELLE — l'opération sûre : l'écran synchronise déjà cette résolution, donc augmenter la fréquence ne peut pas l'éteindre. Seuls les modes que le pilote annonce sont proposés, le mode est validé avant d'être appliqué, et la fréquence est RELUE après coup pour vérifier le résultat. Honnêteté : une fréquence plus élevée rend le mouvement plus fluide et réduit la latence d'affichage — elle n'augmente pas les FPS que ta carte graphique produit."/>
+
+            <!-- Synthesis + global actions + hand-offs -->
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Synthèse" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,2,8,0"
+                                 Fill="{StaticResource Brush.Success}"
+                                 Visibility="{Binding HasMonitors, Converter={StaticResource BoolToVisibility}}"/>
+                        <TextBlock Text="{Binding Headline}" Style="{StaticResource Text.Secondary}"
+                                   FontWeight="SemiBold" TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <WrapPanel Margin="0,14,0,0">
+                        <Button Content="Actualiser" Style="{StaticResource Button.Secondary}"
+                                Command="{Binding RefreshCommand}"/>
+                        <Button Content="Paramètres d'affichage" Style="{StaticResource Button.Primary}" Margin="10,0,0,0"
+                                Command="{Binding OpenDisplaySettingsCommand}"/>
+                        <Button Content="Affichage avancé" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding OpenAdvancedDisplayCommand}"/>
+                        <Button Content="Copier le rapport" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding CopyReportCommand}"
+                                ToolTip="Copie l'état de chaque écran (mode courant, fréquence max, verdict) dans le presse-papiers — prêt à coller sur un forum ou un ticket. Activé après lecture."/>
+                    </WrapPanel>
+
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
+                               Text="Le changement de fréquence est immédiat et persistant : l'écran peut clignoter brièvement, puis Windows mémorise le réglage. Pour revenir en arrière, choisis une autre fréquence dans la liste. La résolution, la mise à l'échelle et le HDR se règlent dans les paramètres Windows (boutons ci-dessus) — cette page ne touche qu'à la fréquence, à la résolution courante."/>
+                </StackPanel>
+            </Border>
+
+            <!-- Per-monitor cards -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="Écrans détectés" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,8,0,0" TextWrapping="Wrap"
+                               Visibility="{Binding HasMonitors, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
+                               Text="Aucun écran actif rapporté par Windows. Utilise « Actualiser » après avoir branché un écran."/>
+
+                    <ItemsControl ItemsSource="{Binding Monitors}" Margin="0,12,0,0"
+                                  Visibility="{Binding HasMonitors, Converter={StaticResource BoolToVisibility}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card.Compact}" Margin="0,5">
+                                    <StackPanel>
+                                        <!-- Identity + flags -->
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,12,0">
+                                                <TextBlock Text="{Binding DisplayName}" Style="{StaticResource Text.Body}"
+                                                           FontWeight="SemiBold" TextWrapping="Wrap"/>
+                                                <Border Style="{StaticResource Badge.Gold}" Margin="8,0,0,0" Padding="5,1"
+                                                        VerticalAlignment="Center"
+                                                        Visibility="{Binding IsPrimary, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="PRINCIPAL" FontSize="8" FontWeight="Bold"
+                                                               Foreground="{StaticResource Brush.Gold.Bright}"/>
+                                                </Border>
+                                            </StackPanel>
+                                            <Border Grid.Column="1" Style="{StaticResource Badge.Gold}" Padding="5,1"
+                                                    VerticalAlignment="Center"
+                                                    Visibility="{Binding CanRaiseRefresh, Converter={StaticResource BoolToVisibility}}">
+                                                <TextBlock Text="⚠ SOUS-FRÉQUENCE" FontSize="8" FontWeight="Bold"
+                                                           Foreground="{StaticResource Brush.Gold.Bright}"/>
+                                            </Border>
+                                        </Grid>
+
+                                        <TextBlock Style="{StaticResource Text.Muted}" Margin="0,3,0,0">
+                                            <Run Text="{Binding CurrentLabel, Mode=OneWay}"/>
+                                            <Run Text=" · "/>
+                                            <Run Text="{Binding OrientationLabel, Mode=OneWay}"/>
+                                            <Run Text=" · "/>
+                                            <Run Text="{Binding DeviceName, Mode=OneWay}"/>
+                                        </TextBlock>
+
+                                        <TextBlock Text="{Binding Verdict}" Style="{StaticResource Text.Secondary}"
+                                                   TextWrapping="Wrap" Margin="0,6,0,0"/>
+
+                                        <!-- One-click fix: only shown when a higher rate actually exists -->
+                                        <Button Content="{Binding RaiseLabel}" Style="{StaticResource Button.Primary}"
+                                                HorizontalAlignment="Left" Margin="0,10,0,0"
+                                                Visibility="{Binding CanRaiseRefresh, Converter={StaticResource BoolToVisibility}}"
+                                                Command="{Binding DataContext.SetMaxCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                CommandParameter="{Binding}"/>
+
+                                        <!-- Full advertised-rate selector (current one is disabled and marked « actif ») -->
+                                        <StackPanel Margin="0,10,0,0"
+                                                    Visibility="{Binding ShowRefreshOptions, Converter={StaticResource BoolToVisibility}}">
+                                            <TextBlock Text="Fréquences disponibles à cette résolution :"
+                                                       Style="{StaticResource Text.Muted}" FontSize="11"/>
+                                            <ItemsControl ItemsSource="{Binding RefreshOptions}" Margin="0,6,0,0">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Button Content="{Binding Label}" Style="{StaticResource Button.Tertiary}"
+                                                                Margin="0,0,6,6"
+                                                                IsEnabled="{Binding IsSelectable}"
+                                                                Command="{Binding DataContext.SetRefreshCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}"/>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

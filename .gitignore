@@ -1,0 +1,52 @@
+# Build outputs
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Visual Studio
+.vs/
+*.opensdf
+*.sdf
+*.cachefile
+
+# JetBrains Rider
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+!packages/build/
+!packages/repositories.config
+
+# Logs
+*.log
+logs/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Test results
+TestResults/
+*.trx
+*.coverage
+
+# Aurum Tweaks runtime artifacts
+**/AurumTweaks/Logs/
+
+# Distributable build artifacts (published ZIP/installer go to Releases, not git)
+dist/
+
+# Local code-navigation graph (regenerable: `graphify update .`)
+graphify-out/
+
+# Local Claude Code state (lock files, machine-local settings)
+.claude/

@@ -1,0 +1,123 @@
+<UserControl x:Class="AurumTweaks.Views.GameOptiView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Optimisations jeu" Style="{StaticResource Text.Display}"/>
+            <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"
+                       Text="Réglages registre documentés qui libèrent des ressources pour le premier plan et le jeu : limitation réseau du planificateur multimédia, part de CPU réservée à l'arrière-plan, et enregistrement de jeu en arrière-plan (Game DVR). Chaque réglage est lu en direct, entièrement réversible, et la valeur est relue après écriture. Honnêteté : le gain est variable et dépend de la configuration — aucun chiffre de FPS n'est promis. Pour MESURER ta latence réseau ou tes frame-times, vois les pages « Gaming » et « Benchmark »."/>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <WrapPanel>
+                        <Button Content="Tout optimiser" Style="{StaticResource Button.Primary}"
+                                Command="{Binding OptimizeAllCommand}"/>
+                        <Button Content="Tout rétablir" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding RestoreAllCommand}"/>
+                        <Button Content="Actualiser" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding RefreshCommand}"/>
+                        <Button Content="Paramètres graphiques (HAGS)" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding OpenGraphicsSettingsCommand}"/>
+                        <Button Content="Captures Xbox" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding OpenCaptureSettingsCommand}"/>
+                    </WrapPanel>
+
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
+                               Text="Un réglage « Non configuré » utilise le comportement par défaut de Windows ; il n'est jamais inventé. Un redémarrage ou une reconnexion peut être nécessaire pour que certains réglages prennent pleinement effet. L'ordonnancement GPU matériel (HAGS) n'est pas modifié ici : son défaut varie selon le GPU/pilote, on le laisse au réglage natif de Windows (bouton ci-dessus)."/>
+
+                    <ItemsControl ItemsSource="{Binding Tweaks}" Margin="0,12,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card.Compact}" Margin="0,4">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Left: identity + live state + advice + optional caveat -->
+                                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Body}" TextWrapping="Wrap"/>
+                                                <Border Style="{StaticResource Badge.Gold}" Margin="8,0,0,0" Padding="5,1"
+                                                        VerticalAlignment="Center"
+                                                        Visibility="{Binding ShowOptimizedBadge, Converter={StaticResource BoolToVisibility}}">
+                                                    <TextBlock Text="✓ OPTIMISÉ" FontSize="8" FontWeight="Bold"
+                                                               Foreground="{StaticResource Brush.Gold.Bright}"/>
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Style="{StaticResource Text.Muted}" Margin="0,2,0,0">
+                                                <Run Text="{Binding CategoryLabel, Mode=OneWay}"/>
+                                                <Run Text=" · "/>
+                                                <Run Text="{Binding StateDisplay, Mode=OneWay}"/>
+                                                <Run Text=" · "/>
+                                                <Run Text="{Binding ValueName, Mode=OneWay}"/>
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding Advice}" Style="{StaticResource Text.Muted}"
+                                                       FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            <TextBlock Text="{Binding Note}" FontSize="11" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                       FontStyle="Italic" Foreground="{StaticResource Brush.Gold.Bright}"
+                                                       Visibility="{Binding HasNote, Converter={StaticResource BoolToVisibility}}"/>
+                                        </StackPanel>
+
+                                        <!-- Right: the Optimiser/Rétablir pair, each gated so no button is ever a no-op -->
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" MinWidth="150">
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                <Button Content="Optimiser" Style="{StaticResource Button.Tertiary}"
+                                                        IsEnabled="{Binding CanOptimize}"
+                                                        Command="{Binding DataContext.OptimizeCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"/>
+                                                <Button Content="Rétablir" Style="{StaticResource Button.Tertiary}" Margin="6,0,0,0"
+                                                        IsEnabled="{Binding CanRestore}"
+                                                        Command="{Binding DataContext.RestoreCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Read-only state for two display/GPU settings the page surfaces but never writes (HAGS / MPO) -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0"
+                    Visibility="{Binding HasGpuInfo, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="GPU et affichage (lecture seule)" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
+                               Text="Deux réglages que la scène recherche mais qu'Aurum ne modifie pas ici : leur défaut varie selon le GPU/pilote et un redémarrage est requis. On affiche leur état réel, lu dans le registre — le changement se fait dans les paramètres Windows."/>
+
+                    <Border Style="{StaticResource Card.Compact}" Margin="0,12,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Ordonnancement GPU matériel (HAGS)" Style="{StaticResource Text.Body}"/>
+                            <TextBlock Style="{StaticResource Text.Muted}" Margin="0,2,0,0">
+                                <Run Text="État : "/>
+                                <Run Text="{Binding DisplayGpu.HagsDisplay, Mode=OneWay}"/>
+                                <Run Text=" · HwSchMode"/>
+                            </TextBlock>
+                            <TextBlock Style="{StaticResource Text.Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"
+                                       Text="Confie une partie de l'ordonnancement GPU au matériel. Effet variable selon le jeu et le pilote. Se règle dans « Paramètres graphiques » (bouton ci-dessus)."/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card.Compact}" Margin="0,8,0,0">
+                        <StackPanel>
+                            <TextBlock Text="Superposition multi-plans (MPO)" Style="{StaticResource Text.Body}"/>
+                            <TextBlock Style="{StaticResource Text.Muted}" Margin="0,2,0,0">
+                                <Run Text="État : "/>
+                                <Run Text="{Binding DisplayGpu.MpoDisplay, Mode=OneWay}"/>
+                                <Run Text=" · OverlayTestMode"/>
+                            </TextBlock>
+                            <TextBlock Style="{StaticResource Text.Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"
+                                       Text="Certains pilotes/jeux montrent du scintillement ou des micro-saccades avec MPO ; le désactiver (OverlayTestMode = 5) est un contournement connu, à n'utiliser qu'en cas de symptôme. Réglage registre, redémarrage requis."/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

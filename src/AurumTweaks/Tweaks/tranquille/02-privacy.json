@@ -1,0 +1,128 @@
+[
+  {
+    "id": "disable-telemetry-base",
+    "name": { "fr": "Désactiver la télémétrie de base", "en": "Disable base telemetry" },
+    "description": {
+      "fr": "Désactive DiagTrack et la collecte de données diagnostique non-essentielle.",
+      "en": "Disables DiagTrack and non-essential diagnostic data collection."
+    },
+    "tier": "Tranquille",
+    "category": "PrivacyTelemetry",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Libère ~150 MB RAM et un peu de CPU au repos",
+    "sources": [ "Atlas OS", "Privatezilla", "O&O ShutUp10", "marvingdt/opti-pc" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Service",
+        "serviceName": "DiagTrack",
+        "startupApply": "Disabled",
+        "startupRevert": "Automatic"
+      },
+      {
+        "type": "Service",
+        "serviceName": "dmwappushservice",
+        "startupApply": "Disabled",
+        "startupRevert": "Manual"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection",
+        "name": "AllowTelemetry",
+        "valueType": "DWord",
+        "apply": "0",
+        "revert": "1"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\DataCollection",
+        "name": "AllowTelemetry",
+        "valueType": "DWord",
+        "apply": "0",
+        "revert": "1"
+      }
+    ]
+  },
+  {
+    "id": "disable-advertising-id",
+    "name": { "fr": "Désactiver l'ID publicitaire", "en": "Disable advertising ID" },
+    "description": {
+      "fr": "Désactive l'ID publicitaire utilisé par les apps modernes pour le tracking publicitaire.",
+      "en": "Disables the advertising ID used by modern apps for ad tracking."
+    },
+    "tier": "Tranquille",
+    "category": "PrivacyTelemetry",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Privacy + (pas d'impact perf)",
+    "sources": [ "Atlas OS", "Privatezilla" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "Software\\Microsoft\\Windows\\CurrentVersion\\AdvertisingInfo",
+        "name": "Enabled",
+        "valueType": "DWord",
+        "apply": "0",
+        "revert": "1"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\AdvertisingInfo",
+        "name": "DisabledByGroupPolicy",
+        "valueType": "DWord",
+        "apply": "1",
+        "revert": "0"
+      }
+    ]
+  },
+  {
+    "id": "disable-activity-feed",
+    "name": { "fr": "Désactiver l'historique des activités", "en": "Disable Activity History" },
+    "description": {
+      "fr": "Désactive le suivi et l'upload de l'historique des activités (Timeline).",
+      "en": "Disables tracking and uploading of Activity History (Timeline)."
+    },
+    "tier": "Tranquille",
+    "category": "PrivacyTelemetry",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Privacy + (pas d'impact perf)",
+    "sources": [ "Atlas OS", "ShutUp10" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+        "name": "EnableActivityFeed",
+        "valueType": "DWord",
+        "apply": "0",
+        "revert": "1"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+        "name": "PublishUserActivities",
+        "valueType": "DWord",
+        "apply": "0",
+        "revert": "1"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+        "name": "UploadUserActivities",
+        "valueType": "DWord",
+        "apply": "0",
+        "revert": "1"
+      }
+    ]
+  }
+]

@@ -1,0 +1,106 @@
+<UserControl x:Class="AurumTweaks.Views.OverclockingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Overclocking" Style="{StaticResource Text.Display}"/>
+            <TextBlock Text="Pousse ton GPU à ses limites — en sécurité. Sliders + auto-OC + tests de stabilité."
+                       Style="{StaticResource Text.Secondary}" Margin="0,4,0,20"/>
+
+            <!-- Backend status -->
+            <Border Style="{StaticResource Card.Subtle}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="GPU" Style="{StaticResource Text.Label}" Margin="0,0,12,0"/>
+                        <Border Style="{StaticResource Badge.Subtle}">
+                            <TextBlock Text="{Binding BackendStatus.Vendor, FallbackValue=—}" FontSize="10" FontWeight="Bold"
+                                       Foreground="{StaticResource Brush.Text.Secondary}"/>
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Text="{Binding HardwareInfo.GpuPrimary, FallbackValue=Détection…}" Style="{StaticResource Text.H3}" Margin="0,6,0,4"/>
+                    <TextBlock Text="{Binding BackendStatus.Message}" Style="{StaticResource Text.Muted}" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="PROFIL D'OVERCLOCK" Style="{StaticResource Text.Label}" Margin="0,0,0,16"/>
+
+                    <!-- Premium lock banner: shown only when a configured build runs Free, so the user knows up-front
+                         that "Appliquer profil" is gated rather than discovering it at apply-time. Empty as-shipped. -->
+                    <Border Background="{StaticResource Brush.Gold.Subtle}" CornerRadius="6" Padding="12,8" Margin="0,0,0,16"
+                            Visibility="{Binding GpuOcLockNote, Converter={StaticResource StringNotEmptyToVisibility}}">
+                        <TextBlock Text="{Binding GpuOcLockNote}" Style="{StaticResource Text.Body}" TextWrapping="Wrap"/>
+                    </Border>
+
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="90"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Core clock offset" Style="{StaticResource Text.Body}" VerticalAlignment="Center"/>
+                        <Slider Grid.Row="0" Grid.Column="1" Minimum="-200" Maximum="500" Value="{Binding GpuCoreOffsetMhz}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding GpuCoreOffsetMhz, StringFormat={}{0:+#;-#;0} MHz}" Style="{StaticResource Text.Gold}" VerticalAlignment="Center" HorizontalAlignment="Right"/>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Memory clock offset" Style="{StaticResource Text.Body}" VerticalAlignment="Center" Margin="0,14,0,0"/>
+                        <Slider Grid.Row="1" Grid.Column="1" Minimum="-500" Maximum="3000" Value="{Binding GpuMemOffsetMhz}" VerticalAlignment="Center" Margin="0,14,12,0"/>
+                        <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding GpuMemOffsetMhz, StringFormat={}{0:+#;-#;0} MHz}" Style="{StaticResource Text.Gold}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,14,0,0"/>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Power limit (via Afterburner)" Style="{StaticResource Text.Body}" VerticalAlignment="Center" Margin="0,14,0,0"/>
+                        <Slider Grid.Row="2" Grid.Column="1" Minimum="50" Maximum="133" Value="{Binding GpuPowerLimitPct}" VerticalAlignment="Center" Margin="0,14,12,0"/>
+                        <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding GpuPowerLimitPct, StringFormat={}{0}%}" Style="{StaticResource Text.Gold}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,14,0,0"/>
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Cible voltage — undervolt (via Afterburner)" Style="{StaticResource Text.Body}" VerticalAlignment="Center" Margin="0,14,0,0"/>
+                        <Slider Grid.Row="3" Grid.Column="1" Minimum="800" Maximum="1100" Value="{Binding GpuTargetVoltageMv}" VerticalAlignment="Center" Margin="0,14,12,0"/>
+                        <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding GpuTargetVoltageMv, StringFormat={}{0} mV}" Style="{StaticResource Text.Gold}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,14,0,0"/>
+                    </Grid>
+
+                    <!-- Honesty: the native backend writes core/mem offsets only. This keeps the power-limit and
+                         voltage sliders above from reading as Aurum-applied (they're Afterburner references). -->
+                    <TextBlock Text="{Binding GpuSlidersNote}" Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,16,0,0"/>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                        <Button Content="Appliquer profil" Style="{StaticResource Button.Primary}" Command="{Binding ApplyGpuOcCommand}" Margin="0,0,8,0"/>
+                        <Button Content="Suggérer un palier prudent" Style="{StaticResource Button.Secondary}" Command="{Binding RunAutoOcCommand}" Margin="0,0,8,0"/>
+                        <Button Content="Comment valider la stabilité ?" Style="{StaticResource Button.Tertiary}" Command="{Binding RunStabilityTestCommand}" Margin="0,0,8,0"/>
+                        <Button Content="Reset" Style="{StaticResource Button.Ghost}" Command="{Binding ResetOcCommand}"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding AutoOcStatus}" Style="{StaticResource Text.Muted}" Margin="0,14,0,0"/>
+                    <TextBlock Text="{Binding StressTestProgress}" Style="{StaticResource Text.Mono}" Margin="0,4,0,0" Foreground="{StaticResource Brush.Gold.Bright}"/>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Curve Optimizer (Ryzen)" Style="{StaticResource Text.H3}" Margin="0,0,0,8"/>
+                    <TextBlock Style="{StaticResource Text.Secondary}" TextWrapping="Wrap">
+                        Le PBO Curve Optimizer applique un offset négatif voltage à la courbe V/F. AUCUN risque hardware — au pire instabilité OS.
+                        Process : -15 all-core safe pour démarrer. Puis per-core via CoreCycler (Prime95 small FFT 6m → 60m par core).
+                        Cores qui crash : remonte l'offset de +3. Itère jusqu'à 8h stable overnight.
+                        Gains : -15-20°C Cinebench, +3-5% multi, +100-200 MHz boost effectif single. C'est le best free perf sur Ryzen.
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="Process undervolt curve (NVIDIA)" Style="{StaticResource Text.H3}" Margin="0,0,0,8"/>
+                    <TextBlock Style="{StaticResource Text.Secondary}" TextWrapping="Wrap">
+                        1. Ouvre MSI Afterburner. 2. Ctrl+F pour Curve Editor. 3. Identifie le point à ~900 mV (RTX 30/40) ou ~875 mV (RTX 50).
+                        4. Augmente Core Clock pour que ce point atteigne la fréquence boost désirée. 5. Shift+clic sur tous les points à droite pour les flatten.
+                        6. Apply (✓). 7. Test stabilité (Heaven, Superposition, jeu open-world 30 min+).
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

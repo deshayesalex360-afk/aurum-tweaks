@@ -1,0 +1,178 @@
+[
+  {
+    "id": "game-mode-enable",
+    "name": { "fr": "Activer Game Mode Windows", "en": "Enable Windows Game Mode" },
+    "description": {
+      "fr": "Active le Game Mode natif de Windows. Désactive les notifications en jeu et priorise CPU/GPU pour le jeu actif.",
+      "en": "Enables native Windows Game Mode. Suppresses notifications and prioritises CPU/GPU for the active game."
+    },
+    "tier": "Tranquille",
+    "category": "Gaming",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Stabilité frametimes, moins de pop-ups in-game",
+    "sources": [ "Hone", "Mopti", "marvingdt/opti-pc" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "Software\\Microsoft\\GameBar",
+        "name": "AutoGameModeEnabled",
+        "valueType": "DWord",
+        "apply": "1",
+        "revert": "0"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "Software\\Microsoft\\GameBar",
+        "name": "AllowAutoGameMode",
+        "valueType": "DWord",
+        "apply": "1",
+        "revert": "0"
+      }
+    ]
+  },
+  {
+    "id": "hardware-gpu-scheduling",
+    "name": { "fr": "Activer Hardware-Accelerated GPU Scheduling (HAGS)", "en": "Enable Hardware-Accelerated GPU Scheduling" },
+    "description": {
+      "fr": "HAGS confie au GPU la gestion de sa propre mémoire et son ordonnancement. Gain frametimes sur cartes récentes (RTX 20+, RX 5000+).",
+      "en": "HAGS lets the GPU manage its own memory and scheduling. Improves frametimes on RTX 20+/RX 5000+."
+    },
+    "tier": "Tranquille",
+    "category": "Gaming",
+    "risk": "Low",
+    "reversible": true,
+    "requiresReboot": true,
+    "expectedImpact": "Léger gain perf, frametimes plus stables",
+    "sources": [ "Hone", "FR33THY" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+        "name": "HwSchMode",
+        "valueType": "DWord",
+        "apply": "2",
+        "revert": "1"
+      }
+    ]
+  },
+  {
+    "id": "disable-fullscreen-optimizations",
+    "name": { "fr": "Désactiver Fullscreen Optimizations", "en": "Disable Fullscreen Optimizations" },
+    "description": {
+      "fr": "Désactive globalement les Fullscreen Optimizations. Réduit la latence d'entrée sur certains jeux DX11.",
+      "en": "Disables Fullscreen Optimizations globally. Reduces input lag on some DX11 games."
+    },
+    "tier": "Tranquille",
+    "category": "Gaming",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Latence d'entrée réduite sur DX11 fullscreen",
+    "sources": [ "FR33THY", "marvingdt/opti-pc" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "System\\GameConfigStore",
+        "name": "GameDVR_FSEBehaviorMode",
+        "valueType": "DWord",
+        "apply": "2",
+        "revert": "0"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "System\\GameConfigStore",
+        "name": "GameDVR_HonorUserFSEBehaviorMode",
+        "valueType": "DWord",
+        "apply": "1",
+        "revert": "0"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "System\\GameConfigStore",
+        "name": "GameDVR_DXGIHonorFSEWindowsCompatible",
+        "valueType": "DWord",
+        "apply": "1",
+        "revert": "0"
+      }
+    ]
+  },
+  {
+    "id": "disable-game-bar",
+    "name": { "fr": "Désactiver Xbox Game Bar", "en": "Disable Xbox Game Bar" },
+    "description": {
+      "fr": "Désactive Xbox Game Bar et Game DVR. Libère ressources GPU, supprime overlay parasite.",
+      "en": "Disables Xbox Game Bar and Game DVR. Frees GPU resources, removes unwanted overlay."
+    },
+    "tier": "Tranquille",
+    "category": "Gaming",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Charge GPU légèrement réduite",
+    "sources": [ "Mopti", "FR33THY", "marvingdt/opti-pc" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "System\\GameConfigStore",
+        "name": "GameDVR_Enabled",
+        "valueType": "DWord",
+        "apply": "0",
+        "revert": "1"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKLM",
+        "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\GameDVR",
+        "name": "AllowGameDVR",
+        "valueType": "DWord",
+        "apply": "0",
+        "revert": "1"
+      },
+      {
+        "type": "Registry",
+        "hive": "HKCU",
+        "key": "Software\\Microsoft\\GameBar",
+        "name": "UseNexusForGameBarEnabled",
+        "valueType": "DWord",
+        "apply": "0",
+        "revert": "1"
+      }
+    ]
+  },
+  {
+    "id": "ultimate-power-plan",
+    "name": { "fr": "Activer le plan Ultimate Performance", "en": "Activate Ultimate Performance power plan" },
+    "description": {
+      "fr": "Active le plan d'alimentation Ultimate Performance (caché). Élimine les micro-throttles CPU.",
+      "en": "Activates the hidden Ultimate Performance power plan. Eliminates CPU micro-throttles."
+    },
+    "tier": "Tranquille",
+    "category": "PowerBoot",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Frametimes plus stables, fin des micro-throttles",
+    "sources": [ "FR33THY", "Hone" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "applicability": { "desktopOnly": true },
+    "warnings": {
+      "fr": "Sur laptop : peut augmenter conso batterie. À utiliser sur secteur."
+    },
+    "operations": [
+      {
+        "type": "PowerShell",
+        "script": "powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61 ; powercfg /setactive e9a42b02-d5df-448d-aa00-03f14749eb61",
+        "revertScript": "powercfg /setactive 381b4222-f694-41f0-9685-ff5bb260df2e"
+      }
+    ]
+  }
+]

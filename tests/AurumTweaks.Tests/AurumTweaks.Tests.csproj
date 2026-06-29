@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+
+    <!-- Match the app: it is x64-only and a WPF assembly. The test project must
+         use the same platform + the WindowsDesktop framework so the project
+         reference resolves cleanly (even though no test touches WPF types). -->
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AurumTweaks\AurumTweaks.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Link the SHIPPED tweak catalog into the test output (preserving the tier subfolders) so the
+         catalog-integrity test validates the REAL JSON through the REAL TweakRepository loader, which
+         reads "{BaseDirectory}/Tweaks". A project reference does not copy the app's Content, so we
+         mirror it explicitly here. -->
+    <Content Include="..\..\src\AurumTweaks\Tweaks\**\*.json"
+             Link="Tweaks\%(RecursiveDir)%(Filename)%(Extension)"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

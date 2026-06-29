@@ -1,0 +1,326 @@
+<UserControl x:Class="AurumTweaks.Views.ProfilesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:AurumTweaks.Views"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Profils" Style="{StaticResource Text.Display}"/>
+            <TextBlock Text="Sauvegarde et charge tes configurations de tweaks. 6 presets intégrés."
+                       Style="{StaticResource Text.Secondary}" Margin="0,4,0,20"/>
+
+            <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Margin="0,0,0,16">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Secondary}">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Status}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <!-- Post-apply verification of the loaded bundle — the same honest « didn't stick » banner as the Tweaks
+                 page and the Dashboard one-click. Shown only when real (HasUnconfirmed): tweaks the engine reported
+                 applied that the live machine does NOT read back as active. Never a fabricated ✓ over the status line. -->
+            <Border CornerRadius="6" Padding="10,8" Margin="0,0,0,16" Background="#1AEF4444"
+                    BorderBrush="{StaticResource Brush.Danger}" BorderThickness="1"
+                    Visibility="{Binding HasUnconfirmed, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource Text.Secondary}" Foreground="{StaticResource Brush.Danger}"
+                               FontWeight="Bold" TextWrapping="Wrap"
+                               Text="⚠ Vérification après application : ces tweaks ont été appliqués, mais à la relecture la valeur diffère de l'état attendu. Un redémarrage peut être requis, ou l'opération n'a pas pris."/>
+                    <TextBlock Style="{StaticResource Text.Mono}" TextWrapping="Wrap" Margin="0,4,0,0"
+                               Text="{Binding LastVerification.UnconfirmedLabel, Mode=OneWay}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Pre-flight safety check (shared control): the restore-point / pending-reboot posture BEFORE applying,
+                 so the heaviest apply surface — loading a whole profile — is « testable sans peur » too. Self-collapsing
+                 when all-clear; bound to the SAME shared PreflightBannerViewModel as the Tweaks page and the dashboard
+                 one-click, so all three forecast the same safety-net abort from one probe. -->
+            <views:PreflightBanner DataContext="{Binding Preflight}"/>
+
+            <!-- Risky-apply confirmation gate: shown only while a profile's to-apply set tripped ProfileApplyRisk
+                 (VM.HasPendingConfirmation). Names exactly what's risky before any backend op runs. -->
+            <Border Style="{StaticResource Card.Compact}" Margin="0,0,0,16"
+                    Visibility="{Binding HasPendingConfirmation, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="{Binding PendingRiskSummary}" TextWrapping="Wrap" Style="{StaticResource Text.Body}"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button Content="Appliquer quand même" Style="{StaticResource Button.Danger}" Margin="0,0,8,0"
+                                Command="{Binding ConfirmApplyCommand}"/>
+                        <Button Content="Annuler" Style="{StaticResource Button.Ghost}"
+                                Command="{Binding CancelApplyCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="Presets Aurum" Style="{StaticResource Text.H3}" Margin="0,0,0,12"/>
+            <ItemsControl ItemsSource="{Binding Presets}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Card}" Width="380" Margin="0,0,12,12">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Name}" Style="{StaticResource Text.H3}" Margin="0,0,12,0"/>
+                                    <Border Style="{StaticResource Badge.Tranquille}"
+                                            Visibility="{Binding IsCompetitiveSafe, Converter={StaticResource BoolToVisibility}}">
+                                        <TextBlock Text="AC SAFE" FontSize="10" FontWeight="Bold"
+                                                   Foreground="{StaticResource Brush.Tier.Tranquille}"/>
+                                    </Border>
+                                </StackPanel>
+                                <TextBlock Text="{Binding Description}" Style="{StaticResource Text.Secondary}" Margin="0,8,0,6" TextWrapping="Wrap"/>
+                                <!-- Pre-apply risk caution: surfaces hardware / anti-cheat / Extreme-tier risk on the card (the same disclosure as the post-« Charger » gate, moved earlier), collapsing when the set carries none. -->
+                                <TextBlock Text="{Binding RiskHint}" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Brush.Warning}" Margin="0,0,0,6" TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Muted}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding RiskHint}" Value="">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <!-- Internal-conflict caution: two+ tweaks in this profile write the same target to different values, so apply order silently decides the winner. Hidden when the set is consistent. -->
+                                <TextBlock Text="{Binding ConflictHint}" FontSize="11" FontWeight="SemiBold"
+                                           Foreground="{StaticResource Brush.Danger}" Margin="0,0,0,6" TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Muted}">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ConflictHint}" Value="">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <!-- Honest pre-apply disclosure: what this profile actually contains (count + per-tier split), so « Charger » is never a blind click. -->
+                                <TextBlock Text="{Binding CompositionLabel}" Style="{StaticResource Text.Muted}" FontSize="11"
+                                           Margin="0,0,0,12" TextWrapping="Wrap"/>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="Charger" Style="{StaticResource Button.Primary}" Margin="0,0,8,0"
+                                            Command="{Binding DataContext.ApplyProfileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"/>
+                                    <!-- Read-only counterpart of « Charger »: probes the live machine and reports how many of this profile's tweaks are actually applied right now, without changing anything. -->
+                                    <Button Content="Vérifier" Style="{StaticResource Button.Ghost}" Margin="0,0,8,0"
+                                            Command="{Binding DataContext.CheckProfileOnSystemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip="Lit l'état réel du système et indique combien de tweaks de ce profil sont actuellement appliqués."/>
+                                    <!-- Forks the preset into an editable user profile by freezing its resolved membership — the only way an immutable preset becomes a starting point you can adjust. -->
+                                    <Button Content="Dupliquer" Style="{StaticResource Button.Secondary}" Margin="0,0,8,0"
+                                            Command="{Binding DataContext.DuplicateProfileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"/>
+                                    <Button Content="Personnaliser" Style="{StaticResource Button.Ghost}"
+                                            Command="{Binding DataContext.CustomizeCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <StackPanel Orientation="Horizontal" Margin="0,16,0,12">
+                <TextBlock Text="Mes profils" Style="{StaticResource Text.H3}" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                <Button Content="+ Créer depuis mes tweaks" Style="{StaticResource Button.Secondary}" Command="{Binding CustomizeCommand}" Margin="0,0,8,0"/>
+                <Button Content="Importer un profil" Style="{StaticResource Button.Secondary}" Command="{Binding ImportProfileCommand}"/>
+            </StackPanel>
+
+            <!-- Bundle actions: back up / migrate / share EVERY user profile in one file (distinct from the single
+                 « Importer un profil » above). Import reconciles each profile against the live catalogue, keeping
+                 only those that still resolve to a recognized tweak. -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Exporter tous mes profils" Style="{StaticResource Button.Secondary}"
+                        Command="{Binding ExportAllProfilesCommand}" Margin="0,0,8,0"/>
+                <Button Content="Importer un lot" Style="{StaticResource Button.Secondary}"
+                        Command="{Binding ImportBundleCommand}"/>
+            </StackPanel>
+
+            <!-- Inline rename editor: visible only while a user profile is being renamed (VM.Renaming != null). -->
+            <Border Style="{StaticResource Card.Compact}" Margin="0,0,0,12"
+                    Visibility="{Binding IsRenaming, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="Renommer :" VerticalAlignment="Center"
+                               Style="{StaticResource Text.Muted}" Margin="0,0,10,0"/>
+                    <TextBox Width="220" Text="{Binding RenameText, UpdateSourceTrigger=PropertyChanged}"
+                             Background="{StaticResource Brush.Bg.Elevated}"
+                             Foreground="{StaticResource Brush.Text.Primary}"
+                             BorderBrush="{StaticResource Brush.Border.Default}"
+                             Padding="10,6" FontSize="12" VerticalContentAlignment="Center" Margin="0,0,10,0"/>
+                    <Button Content="Renommer" Style="{StaticResource Button.Primary}" Margin="0,0,8,0"
+                            Command="{Binding CommitRenameCommand}"/>
+                    <Button Content="Annuler" Style="{StaticResource Button.Ghost}"
+                            Command="{Binding CancelRenameCommand}"/>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="Aucun profil personnalisé. Sur la page Tweaks, coche tes optimisations puis « Enregistrer le profil » — elles apparaîtront ici."
+                       TextWrapping="Wrap" Margin="0,0,0,12">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Muted}">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding UserProfiles.Count}" Value="0">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <ItemsControl ItemsSource="{Binding UserProfiles}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource Card.Compact}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Body}"/>
+                                    <TextBlock Text="{Binding Description}" Style="{StaticResource Text.Muted}"/>
+                                    <TextBlock Text="{Binding CompositionLabel}" Style="{StaticResource Text.Muted}" FontSize="11"
+                                               Margin="0,2,0,0" TextWrapping="Wrap"/>
+                                    <!-- Pre-apply risk caution (same as preset cards): warns on hardware / anti-cheat / Extreme-tier content, hidden when there's none. -->
+                                    <TextBlock Text="{Binding RiskHint}" FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Brush.Warning}" Margin="0,2,0,0" TextWrapping="Wrap">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Muted}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding RiskHint}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <!-- Internal-conflict caution (same as preset cards): two+ tweaks write the same target to different values — a union/merge can introduce this — so apply order decides. Hidden when consistent. -->
+                                    <TextBlock Text="{Binding ConflictHint}" FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{StaticResource Brush.Danger}" Margin="0,2,0,0" TextWrapping="Wrap">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Muted}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ConflictHint}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding LastAppliedUtc, Converter={StaticResource LastAppliedToText}}" Margin="0,2,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Muted}">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding LastAppliedUtc}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Content="Charger" Style="{StaticResource Button.Primary}" Margin="0,0,8,0"
+                                            Command="{Binding DataContext.ApplyProfileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"/>
+                                    <Button Content="Vérifier" Style="{StaticResource Button.Ghost}" Margin="0,0,8,0"
+                                            Command="{Binding DataContext.CheckProfileOnSystemCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip="Lit l'état réel du système et indique combien de tweaks de ce profil sont actuellement appliqués."/>
+                                    <Button Content="Modifier" Style="{StaticResource Button.Secondary}" Margin="0,0,8,0"
+                                            Command="{Binding DataContext.EditProfileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"/>
+                                    <Button Content="Dupliquer" Style="{StaticResource Button.Secondary}" Margin="0,0,8,0"
+                                            Command="{Binding DataContext.DuplicateProfileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"/>
+                                    <Button Content="Renommer" Style="{StaticResource Button.Secondary}" Margin="0,0,8,0"
+                                            Command="{Binding DataContext.BeginRenameCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"/>
+                                    <Button Content="Exporter" Style="{StaticResource Button.Ghost}" Margin="0,0,8,0"
+                                            Command="{Binding DataContext.ExportProfileCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"/>
+                                    <Button Content="Supprimer" Style="{StaticResource Button.Danger}"
+                                            Command="{Binding DataContext.DeleteCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Profile comparison tool: set-diff two profiles' resolved memberships (en commun / propre à A /
+                 propre à B), so a user juggling several setups sees exactly what one adds or drops versus another.
+                 Tweak ids are shown the same way the Tweaks page titles them. Resolves both sides with the same
+                 ProfileComposition.Resolve the apply path uses, so presets and user profiles compare on equal footing. -->
+            <Border Style="{StaticResource Card.Compact}" Margin="0,24,0,0">
+                <StackPanel>
+                    <TextBlock Text="Comparer deux profils" Style="{StaticResource Text.H3}" Margin="0,0,0,10"/>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="A :" VerticalAlignment="Center" Style="{StaticResource Text.Muted}" Margin="0,0,8,0"/>
+                        <ComboBox Width="220" ItemsSource="{Binding AllProfiles}" DisplayMemberPath="Name"
+                                  SelectedItem="{Binding CompareLeft}"
+                                  Background="{StaticResource Brush.Bg.Elevated}"
+                                  Foreground="{StaticResource Brush.Text.Primary}"
+                                  Margin="0,0,16,0"/>
+                        <TextBlock Text="B :" VerticalAlignment="Center" Style="{StaticResource Text.Muted}" Margin="0,0,8,0"/>
+                        <ComboBox Width="220" ItemsSource="{Binding AllProfiles}" DisplayMemberPath="Name"
+                                  SelectedItem="{Binding CompareRight}"
+                                  Background="{StaticResource Brush.Bg.Elevated}"
+                                  Foreground="{StaticResource Brush.Text.Primary}"
+                                  Margin="0,0,16,0"/>
+                        <Button Content="Comparer" Style="{StaticResource Button.Secondary}"
+                                Command="{Binding CompareProfilesCommand}"/>
+                        <Button Content="Fusionner" Style="{StaticResource Button.Secondary}"
+                                Command="{Binding MergeProfilesCommand}" Margin="8,0,0,0"
+                                ToolTip="Crée un nouveau profil réunissant tous les tweaks des deux profils (A puis ce que B ajoute)."/>
+                        <Button Content="Soustraire" Style="{StaticResource Button.Secondary}"
+                                Command="{Binding SubtractProfilesCommand}" Margin="8,0,0,0"
+                                ToolTip="Crée un profil avec les tweaks présents dans A mais absents de B (la colonne « Propre à A »)."/>
+                    </StackPanel>
+
+                    <Border Margin="0,14,0,0"
+                            Visibility="{Binding HasComparison, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding CompareSummary}" TextWrapping="Wrap"
+                                       Style="{StaticResource Text.Body}" FontWeight="SemiBold"
+                                       Foreground="{StaticResource Brush.Gold}" Margin="0,0,0,10"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                    <TextBlock Text="Propre à A" Style="{StaticResource Text.Muted}" FontWeight="Bold" Margin="0,0,0,4"/>
+                                    <TextBlock Text="{Binding CompareOnlyLeftText}" Style="{StaticResource Text.Mono}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                    <TextBlock Text="En commun" Style="{StaticResource Text.Muted}" FontWeight="Bold" Margin="0,0,0,4"/>
+                                    <TextBlock Text="{Binding CompareSharedText}" Style="{StaticResource Text.Mono}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Propre à B" Style="{StaticResource Text.Muted}" FontWeight="Bold" Margin="0,0,0,4"/>
+                                    <TextBlock Text="{Binding CompareOnlyRightText}" Style="{StaticResource Text.Mono}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Grid>
+                            <Button Content="Copier le comparatif" Style="{StaticResource Button.Ghost}"
+                                    Command="{Binding CopyComparisonCommand}"
+                                    HorizontalAlignment="Left" Margin="0,12,0,0"
+                                    ToolTip="Copie ce comparatif (résumé + listes) dans le presse-papiers, prêt à coller."/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,109 @@
+[
+  {
+    "id": "disable-recall",
+    "name": { "fr": "Désactiver Windows Recall", "en": "Disable Windows Recall" },
+    "description": {
+      "fr": "Désactive complètement Windows Recall (capture continue d'écran indexée par IA). Privacy + RAM + disque libérés.",
+      "en": "Fully disables Windows Recall (AI-indexed continuous screenshot capture). Privacy + RAM + disk savings."
+    },
+    "tier": "Tranquille",
+    "category": "PrivacyTelemetry",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Privacy ++ , libère 1-5 GB disque, supprime indexation IA background",
+    "sources": [ "Microsoft docs", "Atlas OS", "ShutUp10" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "windowsVersions": [ "11" ],
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsAI",
+        "name": "DisableAIDataAnalysis", "valueType": "DWord",
+        "apply": "1", "revert": "0"
+      },
+      {
+        "type": "Registry", "hive": "HKCU",
+        "key": "Software\\Policies\\Microsoft\\Windows\\WindowsAI",
+        "name": "DisableAIDataAnalysis", "valueType": "DWord",
+        "apply": "1", "revert": "0"
+      }
+    ]
+  },
+  {
+    "id": "disable-copilot",
+    "name": { "fr": "Désactiver Copilot Windows", "en": "Disable Windows Copilot" },
+    "description": {
+      "fr": "Désactive Copilot Windows et son bouton dans la barre des tâches.",
+      "en": "Disables Windows Copilot and its taskbar button."
+    },
+    "tier": "Tranquille",
+    "category": "PrivacyTelemetry",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Privacy + libère ressources idle",
+    "sources": [ "Atlas OS", "ShutUp10", "Microsoft docs" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "windowsVersions": [ "11" ],
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKCU",
+        "key": "Software\\Policies\\Microsoft\\Windows\\WindowsCopilot",
+        "name": "TurnOffWindowsCopilot", "valueType": "DWord",
+        "apply": "1", "revert": "0"
+      },
+      {
+        "type": "Registry", "hive": "HKCU",
+        "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "name": "ShowCopilotButton", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      }
+    ]
+  },
+  {
+    "id": "disable-chat-icon",
+    "name": { "fr": "Masquer Microsoft Teams Chat", "en": "Hide Microsoft Teams Chat" },
+    "description": {
+      "fr": "Cache l'icône Microsoft Teams Chat de la barre des tâches.",
+      "en": "Hides Microsoft Teams Chat icon from taskbar."
+    },
+    "tier": "Tranquille",
+    "category": "UIQualityOfLife",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Ergonomie",
+    "sources": [ "Atlas OS", "Tiny11" ],
+    "windowsVersions": [ "11" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKCU",
+        "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+        "name": "TaskbarMn", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      }
+    ]
+  },
+  {
+    "id": "disable-news-and-interests",
+    "name": { "fr": "Désactiver News & Interests / Discover feed", "en": "Disable News & Interests / Discover feed" },
+    "description": {
+      "fr": "Désactive le widget News and Interests (Discover) qui sollicite CPU/réseau en background.",
+      "en": "Disables the News and Interests widget (Discover) which uses background CPU/network."
+    },
+    "tier": "Tranquille",
+    "category": "PerformanceMultimedia",
+    "risk": "None",
+    "reversible": true,
+    "expectedImpact": "Réduit usage CPU/réseau idle",
+    "sources": [ "Atlas OS", "ShutUp10" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "operations": [
+      {
+        "type": "Registry", "hive": "HKLM",
+        "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Feeds",
+        "name": "EnableFeeds", "valueType": "DWord",
+        "apply": "0", "revert": "1"
+      }
+    ]
+  }
+]

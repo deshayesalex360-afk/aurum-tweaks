@@ -1,0 +1,51 @@
+[
+  {
+    "id": "disable-core-parking",
+    "name": { "fr": "Désactiver le Core Parking (desktop)", "en": "Disable Core Parking (desktop)" },
+    "description": {
+      "fr": "Force le plan d'alimentation actif à garder 100 % des cœurs CPU éveillés (CPMINCORES=100). Supprime la latence de « réveil » d'un cœur parqué — gain de réactivité sur les charges en rafale comme le jeu. Réservé aux PC de bureau.",
+      "en": "Forces the active power plan to keep 100% of CPU cores awake (CPMINCORES=100). Removes the wake-up latency of a parked core — snappier on bursty loads like gaming. Desktop only."
+    },
+    "tier": "Extreme",
+    "category": "PowerBoot",
+    "risk": "Medium",
+    "reversible": true,
+    "expectedImpact": "Latence de réveil cœur supprimée, 1% low parfois meilleurs",
+    "sources": [ "FR33THY", "Calypto", "BoringBoredom" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "applicability": { "desktopOnly": true },
+    "priority": 45,
+    "warnings": { "fr": "Augmente la consommation et la température CPU au repos. Déconseillé sur portable (autonomie)." },
+    "operations": [
+      {
+        "type": "Cmd",
+        "script": "powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES 100 && powercfg -setactive SCHEME_CURRENT",
+        "revertScript": "powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR CPMINCORES 5 && powercfg -setactive SCHEME_CURRENT"
+      }
+    ]
+  },
+  {
+    "id": "cpu-perf-boost-aggressive",
+    "name": { "fr": "Boost de fréquence agressif", "en": "Aggressive frequency boost" },
+    "description": {
+      "fr": "Règle le mode de boost du processeur sur « Agressif » (PERFBOOSTMODE=2) au lieu de « Agressif efficace » (PERFBOOSTMODE=4) par défaut. Le CPU monte en fréquence plus tôt et plus fort sous charge.",
+      "en": "Sets the processor boost mode to 'Aggressive' (PERFBOOSTMODE=2) instead of the default 'Efficient Aggressive' (PERFBOOSTMODE=4). The CPU boosts sooner and harder under load."
+    },
+    "tier": "Extreme",
+    "category": "PowerBoot",
+    "risk": "Low",
+    "reversible": true,
+    "expectedImpact": "Montée en fréquence plus réactive sous charge",
+    "sources": [ "FR33THY", "Microsoft docs" ],
+    "antiCheat": { "vanguard": "Safe", "easyAntiCheat": "Safe", "battlEye": "Safe", "faceit": "Safe" },
+    "priority": 38,
+    "warnings": { "fr": "Conso et température légèrement plus élevées sous charge." },
+    "operations": [
+      {
+        "type": "Cmd",
+        "script": "powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 2 && powercfg -setactive SCHEME_CURRENT",
+        "revertScript": "powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PERFBOOSTMODE 4 && powercfg -setactive SCHEME_CURRENT"
+      }
+    ]
+  }
+]

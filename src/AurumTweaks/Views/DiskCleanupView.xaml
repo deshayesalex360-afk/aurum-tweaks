@@ -1,0 +1,75 @@
+<UserControl x:Class="AurumTweaks.Views.DiskCleanupView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource Brush.Bg.Base}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="32,24,32,32">
+            <TextBlock Text="Nettoyage disque" Style="{StaticResource Text.Display}"/>
+            <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"
+                       Text="Récupère de l'espace en vidant les fichiers temporaires et caches que Windows et tes applications laissent s'accumuler. Chaque emplacement est mesuré sur ton disque (octets réels) — tu choisis quoi nettoyer. C'est de l'espace disque : aucun gain de FPS n'est promis."/>
+
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Analyser" Style="{StaticResource Button.Primary}" Command="{Binding ScanCommand}"/>
+                        <Button Content="Tout nettoyer" Style="{StaticResource Button.Danger}" Margin="10,0,0,0"
+                                Command="{Binding CleanAllCommand}"/>
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource Text.Gold}" FontSize="28" FontWeight="Bold" Margin="0,16,0,0"
+                               Text="{Binding TotalDisplay}"/>
+                    <TextBlock Text="récupérable dans les fichiers temporaires" Style="{StaticResource Text.Muted}"/>
+
+                    <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,12,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
+                               Text="Les tailles sont mesurées sur ton disque (octets réels, jamais estimés). La suppression est définitive — contrairement aux tweaks, il n'y a pas d'inverse — mais sans danger : Windows et tes applications recréent ces fichiers au besoin. Les fichiers verrouillés (en cours d'utilisation) sont ignorés, et l'espace réellement libéré est affiché après coup."/>
+
+                    <ItemsControl ItemsSource="{Binding Items}" Margin="0,12,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card.Compact}" Margin="0,4">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                            <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Body}"/>
+                                            <TextBlock Text="{Binding Advice}" Style="{StaticResource Text.Muted}"
+                                                       FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                        </StackPanel>
+
+                                        <TextBlock Grid.Column="1" Text="{Binding SizeDisplay}" Style="{StaticResource Text.Body}"
+                                                   VerticalAlignment="Center" Margin="0,0,12,0"/>
+
+                                        <Button Grid.Column="2" VerticalAlignment="Center"
+                                                Content="Nettoyer" Style="{StaticResource Button.Danger}"
+                                                Visibility="{Binding HasReclaimable, Converter={StaticResource BoolToVisibility}}"
+                                                Command="{Binding DataContext.CleanCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                CommandParameter="{Binding}"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card.Subtle}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="Pour aller plus loin" Style="{StaticResource Text.H3}"/>
+                    <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,6,0,0" TextWrapping="Wrap"
+                               Text="Cette page n'automatise que des dossiers temporaires sûrs, recréés par Windows. L'espace plus risqué — composants Windows (WinSxS), ancienne installation (Windows.old), Corbeille, points de restauration — est laissé à l'outil Windows, qui sait le récupérer sans casser tes possibilités de restauration."/>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Nettoyage de disque Windows" Style="{StaticResource Button.Secondary}"
+                                Command="{Binding OpenWindowsCleanupCommand}"/>
+                        <Button Content="Assistant de stockage" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                Command="{Binding OpenStorageSettingsCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
