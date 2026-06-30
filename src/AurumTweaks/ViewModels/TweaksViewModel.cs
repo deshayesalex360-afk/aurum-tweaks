@@ -250,7 +250,7 @@ public partial class TweaksViewModel : ObservableObject
     // review before anything touches the elevated machine. Honest no-op with a reason when nothing is selected,
     // so the button never silently does nothing.
     [RelayCommand]
-    private void PreviewPlan()
+    private async Task PreviewPlanAsync()
     {
         var selected = Tweaks.Where(t => t.IsSelected).ToList();
         if (selected.Count == 0)
@@ -266,7 +266,7 @@ public partial class TweaksViewModel : ObservableObject
             StatusMessage = PremiumGateText.AllLocked(locked.Count);
             return;
         }
-        CurrentPlan = TweakApplyPlan.Build(allowed);
+        CurrentPlan = await _tweakService.PreviewApplyPlanAsync(allowed);
         CurrentConflicts = TweakConflictDetector.Detect(allowed);
         IsPlanVisible = true;
         if (locked.Count > 0)

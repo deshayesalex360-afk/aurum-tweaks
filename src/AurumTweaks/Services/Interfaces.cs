@@ -73,6 +73,12 @@ public interface ITweakService
     /// </summary>
     Task<VerificationReport?> VerifyAppliedAsync(IReadOnlyList<Tweak> attempted);
 
+    /// <summary>
+    /// Build the read-only apply preview for a selected batch. This may read registry/service current values, but it
+    /// must not write anything; the returned plan is built from the same dispatch the apply path executes.
+    /// </summary>
+    Task<ApplyPlan> PreviewApplyPlanAsync(IReadOnlyList<Tweak> tweaks);
+
     /// <summary>Apply every tweak; returns the honest tally so callers never present the success count as the whole story.</summary>
     Task<BatchTweakResult> ApplyManyAsync(IEnumerable<Tweak> tweaks);
 

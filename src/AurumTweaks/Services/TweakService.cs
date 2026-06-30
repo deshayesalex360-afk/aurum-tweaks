@@ -55,6 +55,145 @@ public static class TweakShellCommand
     }
 }
 
+public abstract record TweakEngineAction;
+
+public sealed record RegistryTweakAction(string Hive, string Key, string Name, string? Value, RegistryValueType ValueType)
+    : TweakEngineAction
+{
+    public bool DeletesValue => Value is null;
+}
+
+public sealed record ServiceStartupTweakAction(string ServiceName, string StartupType) : TweakEngineAction;
+
+public sealed record ShellTweakAction(string FileName, string Arguments) : TweakEngineAction;
+
+/// <summary>
+/// Pure OperationType dispatch for the tweak engine. <see cref="TweakService.ExecuteAsync"/> executes the returned
+/// action, and <see cref="TweakDryRunDelta"/> renders the same action for the preview, so "what will happen" and
+/// "what did run" cannot drift into two hand-maintained switch statements.
+/// </summary>
+public static class TweakOperationAction
+{
+    public static TweakEngineAction? Build(TweakOperation op, bool applying)
+    {
+        switch (op.Type)
+        {
+            case OperationType.Registry:
+                if (op.Hive is null || op.Key is null || op.Name is null) return null;
+                return new RegistryTweakAction(op.Hive, op.Key, op.Name, applying ? op.Apply : op.Revert, op.ValueType);
+
+            case OperationType.Service:
+                if (op.ServiceName is null) return null;
+                var target = applying ? op.StartupApply : op.StartupRevert;
+                if (string.IsNullOrEmpty(target)) return null;
+                return new ServiceStartupTweakAction(op.ServiceName, target);
+
+            case OperationType.PowerShell:
+            case OperationType.Cmd:
+                if (string.IsNullOrEmpty(applying ? op.Script : op.RevertScript)) return null;
+                return TweakShellCommand.Build(op, applying) is { } scriptedShell
+                    ? new ShellTweakAction(scriptedShell.FileName, scriptedShell.Arguments)
+                    : null;
+
+            case OperationType.Bcdedit:
+            case OperationType.AppX:
+            case OperationType.ScheduledTask:
+                return TweakShellCommand.Build(op, applying) is { } shell
+                    ? new ShellTweakAction(shell.FileName, shell.Arguments)
+                    : null;
+
+            default:
+                return null;
+        }
+    }
+}
+
+/// <summary>
+/// Pure dry-run renderer for one tweak operation. It consumes <see cref="TweakOperationAction.Build"/> (the same
+/// dispatch the elevated apply path executes) plus an optional read-only current value, and produces the exact row
+/// shown in the Tweaks preview. Registry equality uses <see cref="RegistryValue.Matches"/> so "0x1" and "1" do not
+/// produce a fake delta.
+/// </summary>
+public static class TweakDryRunDelta
+{
+    public static OperationDelta Build(TweakOperation op, OperationCurrent current)
+    {
+        var summary = TweakOperationSummary.Describe(op);
+        var apply = TweakOperationAction.Build(op, applying: true);
+        var revert = TweakOperationAction.Build(op, applying: false);
+        var isIrreversible = !CanExecute(revert);
+
+        return new OperationDelta(
+            summary.Kind,
+            summary.Target,
+            CurrentLabel(current),
+            RenderAction(apply),
+            isIrreversible ? TweakOperationSummary.NoRevert : RenderAction(revert),
+            StatusFor(apply, current),
+            isIrreversible);
+    }
+
+    private static OperationDeltaStatus StatusFor(TweakEngineAction? action, OperationCurrent current)
+    {
+        if (action is RegistryTweakAction reg)
+        {
+            if (current.State != OperationCurrentState.Present)
+                return OperationDeltaStatus.Unknown;
+            if (reg.DeletesValue)
+                return OperationDeltaStatus.WillChange;
+            return RegistryValue.Matches(current.Value, reg.Value, reg.ValueType)
+                ? OperationDeltaStatus.AlreadyTarget
+                : OperationDeltaStatus.WillChange;
+        }
+
+        if (action is ServiceStartupTweakAction svc)
+        {
+            if (current.State != OperationCurrentState.Present)
+                return OperationDeltaStatus.Unknown;
+            return string.Equals(current.Value, svc.StartupType, System.StringComparison.OrdinalIgnoreCase)
+                ? OperationDeltaStatus.AlreadyTarget
+                : OperationDeltaStatus.WillChange;
+        }
+
+        return OperationDeltaStatus.Unknown;
+    }
+
+    private static bool CanExecute(TweakEngineAction? action) => action switch
+    {
+        null => false,
+        ShellTweakAction shell => !string.IsNullOrWhiteSpace(shell.Arguments),
+        _ => true
+    };
+
+    private static string RenderAction(TweakEngineAction? action) => action switch
+    {
+        RegistryTweakAction reg when reg.DeletesValue => "supprime la valeur",
+        RegistryTweakAction reg => $"écrit {reg.Value} ({RegTypeLabel(reg.ValueType)})",
+        ServiceStartupTweakAction svc => $"démarrage → {svc.StartupType}",
+        ShellTweakAction shell when string.IsNullOrWhiteSpace(shell.Arguments) => "commande vide (le moteur la refusera)",
+        ShellTweakAction shell => $"{shell.FileName} {shell.Arguments}",
+        _ => TweakOperationSummary.NoRevert
+    };
+
+    private static string CurrentLabel(OperationCurrent current) => current.State switch
+    {
+        OperationCurrentState.Present => current.Value ?? string.Empty,
+        OperationCurrentState.MissingOrUnreadable => "absent(e) ou non lisible",
+        _ => "non relu par le moteur"
+    };
+
+    private static string RegTypeLabel(RegistryValueType type) => type switch
+    {
+        RegistryValueType.DWord => "DWORD",
+        RegistryValueType.QWord => "QWORD",
+        RegistryValueType.String => "chaîne",
+        RegistryValueType.ExpandString => "chaîne extensible",
+        RegistryValueType.Binary => "binaire",
+        RegistryValueType.MultiString => "chaînes multiples",
+        _ => type.ToString()
+    };
+}
+
 /// <summary>
 /// Maps an operation tally to the honest <see cref="TweakApplyResult"/> for a tweak's apply/revert. Pulled out
 /// as a pure function (no I/O) because it is the honesty surface: success is reported ONLY when zero ops
@@ -291,6 +430,9 @@ public sealed class TweakService : ITweakService
         return TweakVerifier.Build(probed);
     }
 
+    public Task<ApplyPlan> PreviewApplyPlanAsync(IReadOnlyList<Tweak> tweaks) => Task.Run(() =>
+        TweakApplyPlan.Build(tweaks, (_, op) => ReadCurrentForPreview(op)));
+
     // One whole-tweak probe, synchronous and read-only. Probe EVERY op (not just the first), then fold honestly:
     // a tweak with op A applied but op B still at default is half-applied → NotApplied, not a green check.
     private TweakAppliedState DetectState(Tweak tweak)
@@ -337,6 +479,27 @@ public sealed class TweakService : ITweakService
         }
     }
 
+    private OperationCurrent ReadCurrentForPreview(TweakOperation op)
+    {
+        switch (op.Type)
+        {
+            case OperationType.Registry:
+                if (op.Hive is null || op.Key is null || op.Name is null) return OperationCurrent.NotRead;
+                return _registry.TryReadValue(op.Hive, op.Key, op.Name, out var current)
+                    ? OperationCurrent.Present(current ?? string.Empty)
+                    : OperationCurrent.MissingOrUnreadable;
+
+            case OperationType.Service:
+                if (op.ServiceName is null) return OperationCurrent.NotRead;
+                return _services.TryGetStartupType(op.ServiceName, out var startup)
+                    ? OperationCurrent.Present(startup ?? string.Empty)
+                    : OperationCurrent.MissingOrUnreadable;
+
+            default:
+                return OperationCurrent.NotRead;
+        }
+    }
+
     public async Task<BatchTweakResult> ApplyManyAsync(IEnumerable<Tweak> tweaks)
     {
         // Honesty: the Settings toggle must actually mean something. When the user turns OFF
@@ -372,35 +535,20 @@ public sealed class TweakService : ITweakService
 
     private Task<bool> ExecuteAsync(TweakOperation op, bool applying) => Task.Run(() =>
     {
-        switch (op.Type)
+        switch (TweakOperationAction.Build(op, applying))
         {
-            case OperationType.Registry:
-                if (op.Hive is null || op.Key is null || op.Name is null) return false;
-                if (applying)
-                {
-                    if (op.Apply is null) return _registry.DeleteValue(op.Hive, op.Key, op.Name);
-                    return _registry.WriteValue(op.Hive, op.Key, op.Name, op.Apply, op.ValueType);
-                }
-                else
-                {
-                    if (op.Revert is null) return _registry.DeleteValue(op.Hive, op.Key, op.Name);
-                    return _registry.WriteValue(op.Hive, op.Key, op.Name, op.Revert, op.ValueType);
-                }
+            case RegistryTweakAction reg:
+                return reg.DeletesValue
+                    ? _registry.DeleteValue(reg.Hive, reg.Key, reg.Name)
+                    : _registry.WriteValue(reg.Hive, reg.Key, reg.Name, reg.Value!, reg.ValueType);
 
-            case OperationType.Service:
-                if (op.ServiceName is null) return false;
-                var target = applying ? op.StartupApply : op.StartupRevert;
-                if (string.IsNullOrEmpty(target)) return false;
-                return _services.SetStartupType(op.ServiceName, target);
+            case ServiceStartupTweakAction svc:
+                return _services.SetStartupType(svc.ServiceName, svc.StartupType);
 
-            case OperationType.PowerShell:
-            case OperationType.Cmd:
-            case OperationType.Bcdedit:
-            case OperationType.AppX:
-            case OperationType.ScheduledTask:
+            case ShellTweakAction shell:
                 // Build the (fileName, args) purely (so the apply/revert inversion is testable), then run it.
                 // A null command means a required field is missing → no-op false, as before.
-                return TweakShellCommand.Build(op, applying) is { } cmd && RunShell(cmd.FileName, cmd.Arguments);
+                return RunShell(shell.FileName, shell.Arguments);
             default:
                 return false;
         }

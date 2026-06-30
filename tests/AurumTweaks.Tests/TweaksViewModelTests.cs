@@ -530,7 +530,7 @@ public class TweaksViewModelTests
         var tweaks = new RecordingTweakService();
         var vm = await NewVm(tweaks, a, b);
 
-        vm.PreviewPlanCommand.Execute(null);
+        await vm.PreviewPlanCommand.ExecuteAsync(null);
 
         Assert.True(vm.IsPlanVisible);
         Assert.NotNull(vm.CurrentPlan);
@@ -546,7 +546,7 @@ public class TweaksViewModelTests
         var tweaks = new RecordingTweakService();
         var vm = await NewVm(tweaks, t);
 
-        vm.PreviewPlanCommand.Execute(null);
+        await vm.PreviewPlanCommand.ExecuteAsync(null);
 
         Assert.False(vm.IsPlanVisible);
         Assert.Null(vm.CurrentPlan);
@@ -559,7 +559,7 @@ public class TweaksViewModelTests
         var a = Picked("a", RegOp());
         var tweaks = new RecordingTweakService();
         var vm = await NewVm(tweaks, a);
-        vm.PreviewPlanCommand.Execute(null);
+        await vm.PreviewPlanCommand.ExecuteAsync(null);
         Assert.True(vm.IsPlanVisible);
 
         await vm.ConfirmPlanCommand.ExecuteAsync(null);
@@ -576,7 +576,7 @@ public class TweaksViewModelTests
         var a = Picked("a", RegOp());
         var tweaks = new RecordingTweakService();
         var vm = await NewVm(tweaks, a);
-        vm.PreviewPlanCommand.Execute(null);
+        await vm.PreviewPlanCommand.ExecuteAsync(null);
 
         vm.ClosePlanCommand.Execute(null);
 
@@ -594,7 +594,7 @@ public class TweaksViewModelTests
         var tweaks = new RecordingTweakService();
         var vm = await NewVm(tweaks, a, b);
 
-        vm.PreviewPlanCommand.Execute(null);
+        await vm.PreviewPlanCommand.ExecuteAsync(null);
 
         Assert.True(vm.HasConflicts);
         var c = Assert.Single(vm.CurrentConflicts);
@@ -610,7 +610,7 @@ public class TweaksViewModelTests
         var tweaks = new RecordingTweakService();
         var vm = await NewVm(tweaks, a, b);
 
-        vm.PreviewPlanCommand.Execute(null);
+        await vm.PreviewPlanCommand.ExecuteAsync(null);
 
         Assert.False(vm.HasConflicts);
         Assert.Empty(vm.CurrentConflicts);
@@ -975,7 +975,7 @@ public class TweaksViewModelTests
         var tweaks = new RecordingTweakService();
         var vm = await NewVmLicensed(tweaks, new FakeLicenseService(AppEdition.Free, configured: true), ext);
 
-        vm.PreviewPlanCommand.Execute(null);
+        await vm.PreviewPlanCommand.ExecuteAsync(null);
 
         Assert.False(vm.IsPlanVisible);                     // the preview refuses just as the apply does
         Assert.Null(vm.CurrentPlan);
@@ -991,7 +991,7 @@ public class TweaksViewModelTests
         var tweaks = new RecordingTweakService();
         var vm = await NewVmLicensed(tweaks, new FakeLicenseService(AppEdition.Free, configured: true), free, ext);
 
-        vm.PreviewPlanCommand.Execute(null);
+        await vm.PreviewPlanCommand.ExecuteAsync(null);
 
         Assert.True(vm.IsPlanVisible);
         Assert.NotNull(vm.CurrentPlan);

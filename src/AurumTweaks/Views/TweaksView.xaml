@@ -187,7 +187,7 @@
                 <views:PreflightBanner DataContext="{Binding Preflight}"/>
 
                 <StackPanel Orientation="Horizontal">
-                    <Button Content="Prévisualiser le plan" Style="{StaticResource Button.Primary}"
+                    <Button Content="Aperçu / dry-run" Style="{StaticResource Button.Primary}"
                             Command="{Binding PreviewPlanCommand}" Margin="0,0,10,0"/>
                     <Button Content="Appliquer la sélection" Style="{StaticResource Button.Secondary}"
                             Command="{Binding ApplySelectedCommand}" Margin="0,0,10,0"/>
@@ -328,6 +328,8 @@
                                    TextWrapping="Wrap"><Run Text="⚠ "/><Run Text="{Binding CurrentPlan.IrreversibleCount, Mode=OneWay}"/><Run Text=" opération(s) ne sont pas réversibles automatiquement — repérées en rouge ci-dessous."/></TextBlock>
                         <TextBlock Margin="0,2,0,0" Style="{StaticResource Text.Muted}"
                                    Text="Un point de restauration est créé avant l'application si l'option est activée dans les Réglages."/>
+                        <TextBlock Margin="0,2,0,0" Style="{StaticResource Text.Muted}" TextWrapping="Wrap"
+                                   Text="Aperçu en lecture seule : le Registre et les services sont lus pour afficher l'état actuel, mais aucune écriture n'est faite avant « Appliquer maintenant ». Une ligne « absent(e) ou non lisible » indique la limite exacte de lecture Windows."/>
 
                         <!-- Selection conflicts: two+ selected tweaks set the SAME registry value / service to
                              DIFFERENT values, so apply order silently decides the winner. Shown only when real
@@ -394,23 +396,33 @@
                                                 <Border Grid.Column="0" CornerRadius="4" Padding="5,1" Margin="0,0,8,0" VerticalAlignment="Top"
                                                         Background="{StaticResource Brush.Bg.Panel}"
                                                         BorderBrush="{StaticResource Brush.Border.Default}" BorderThickness="1">
-                                                    <TextBlock Text="{Binding Operation.Kind}" FontSize="9" FontWeight="Bold"
+                                                    <TextBlock Text="{Binding Delta.Kind}" FontSize="9" FontWeight="Bold"
                                                                Foreground="{StaticResource Brush.Gold}"/>
                                                 </Border>
-                                                <TextBlock Grid.Column="1" Text="{Binding Operation.Target}" Style="{StaticResource Text.Mono}"
+                                                <TextBlock Grid.Column="1" Text="{Binding Delta.Target}" Style="{StaticResource Text.Mono}"
                                                            TextWrapping="Wrap" VerticalAlignment="Top"
-                                                           Visibility="{Binding Operation.Target, Converter={StaticResource StringNotEmptyToVisibility}}"/>
-                                                <TextBlock Grid.Column="2" Text="{Binding TweakId}" Style="{StaticResource Text.Muted}"
-                                                           VerticalAlignment="Top" Margin="8,0,0,0"/>
+                                                           Visibility="{Binding Delta.Target, Converter={StaticResource StringNotEmptyToVisibility}}"/>
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top" Margin="8,0,0,0">
+                                                    <TextBlock Text="{Binding Delta.StatusLabel}" Style="{StaticResource Text.Muted}" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="{Binding TweakId}" Style="{StaticResource Text.Muted}"/>
+                                                </StackPanel>
+                                            </Grid>
+                                            <Grid Margin="0,5,0,0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="Actuel : " Style="{StaticResource Text.Muted}" VerticalAlignment="Top"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding Delta.Current}" Style="{StaticResource Text.Mono}" TextWrapping="Wrap"/>
                                             </Grid>
                                             <Grid Margin="0,5,0,0"
-                                                  Visibility="{Binding Operation.Apply, Converter={StaticResource StringNotEmptyToVisibility}}">
+                                                  Visibility="{Binding Delta.Apply, Converter={StaticResource StringNotEmptyToVisibility}}">
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Grid.Column="0" Text="Appliquer : " Style="{StaticResource Text.Muted}" VerticalAlignment="Top"/>
-                                                <TextBlock Grid.Column="1" Text="{Binding Operation.Apply}" Style="{StaticResource Text.Mono}" TextWrapping="Wrap"/>
+                                                <TextBlock Grid.Column="1" Text="{Binding Delta.Apply}" Style="{StaticResource Text.Mono}" TextWrapping="Wrap"/>
                                             </Grid>
                                             <Grid Margin="0,2,0,0">
                                                 <Grid.ColumnDefinitions>
@@ -418,7 +430,7 @@
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
                                                 <TextBlock Grid.Column="0" Text="Rétablir : " Style="{StaticResource Text.Muted}" VerticalAlignment="Top"/>
-                                                <TextBlock Grid.Column="1" Text="{Binding Operation.Revert}" TextWrapping="Wrap">
+                                                <TextBlock Grid.Column="1" Text="{Binding Delta.Revert}" TextWrapping="Wrap">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock" BasedOn="{StaticResource Text.Mono}">
                                                             <Style.Triggers>

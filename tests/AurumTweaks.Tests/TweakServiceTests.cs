@@ -343,6 +343,49 @@ public class TweakServiceTests
         Assert.Equal(TweakAppliedState.NotApplied, states[0]);
     }
 
+    [Fact]
+    public async Task PreviewApplyPlan_ReadsRegistryAndServiceCurrentValues_WithoutWritingAnything()
+    {
+        var (svc, reg, svcMgr, _, log) = NewService();
+        reg.Seed(Hive, Key, "Flag", "0");
+        svcMgr.Seed("DiagTrack", "Automatic");
+        var tweak = new Tweak
+        {
+            Id = "preview",
+            Operations =
+            {
+                new TweakOperation
+                {
+                    Type = OperationType.Registry,
+                    Hive = Hive,
+                    Key = Key,
+                    Name = "Flag",
+                    ValueType = RegistryValueType.DWord,
+                    Apply = "1",
+                    Revert = "0"
+                },
+                new TweakOperation
+                {
+                    Type = OperationType.Service,
+                    ServiceName = "DiagTrack",
+                    StartupApply = "Disabled",
+                    StartupRevert = "Automatic"
+                }
+            }
+        };
+
+        var plan = await svc.PreviewApplyPlanAsync(new[] { tweak });
+
+        Assert.Equal(2, plan.TotalOperations);
+        Assert.Equal("0", plan.Operations[0].Delta.Current);
+        Assert.Equal("écrit 1 (DWORD)", plan.Operations[0].Delta.Apply);
+        Assert.Equal("Automatic", plan.Operations[1].Delta.Current);
+        Assert.Equal("démarrage → Disabled", plan.Operations[1].Delta.Apply);
+        Assert.Empty(log.Events); // no restore point, no registry write, no service write
+        Assert.Equal("0", reg.Store[$@"{Hive}\{Key}\Flag"]);
+        Assert.Equal("Automatic", svcMgr.Startup["DiagTrack"]);
+    }
+
     // ---- The safety net: restore point precedes writes -------------------
 
     [Fact]

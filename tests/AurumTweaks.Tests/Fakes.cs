@@ -355,6 +355,9 @@ public sealed class RecordingTweakService : ITweakService
         return Task.FromResult<VerificationReport?>(TweakVerifier.Build(probed));
     }
 
+    public Task<ApplyPlan> PreviewApplyPlanAsync(IReadOnlyList<Tweak> tweaks)
+        => Task.FromResult(TweakApplyPlan.Build(tweaks));
+
     public Task<BatchTweakResult> ApplyManyAsync(IEnumerable<Tweak> tweaks)
     {
         // Safety-abort mirror: a failed REQUIRED restore point means the engine touches nothing — so the fake must
