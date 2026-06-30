@@ -438,3 +438,109 @@ public class ProcessControlReportTests
         Assert.Equal(1, report.GameCount);
     }
 }
+
+public class ProcessPersistencePlanTests
+{
+    private static readonly CpuLayout Hybrid = new(16, new[] { 0, 1, 2, 3, 4, 5, 6, 7 });
+
+    private static RunningProcessInfo GameRow(bool accessible = true) => new(
+        Pid: 1234,
+        Name: "Game",
+        ExecutablePath: @"C:\Games\Game\Game.exe",
+        Accessible: accessible,
+        Priority: ProcessPriorityLevel.Normal,
+        AffinityMask: 0xFFFFUL,
+        IsGame: true,
+        Platform: "Steam",
+        HasAntiCheat: false,
+        AntiCheatName: "",
+        WorkingSetBytes: 0,
+        Layout: Hybrid,
+        Advice: PriorityAffinityAdvice.For(isGame: true, hasAntiCheat: false, Hybrid));
+
+    [Fact]
+    public void BuildRule_UsesRecommendedPriorityAffinity_AndOptionalPowerPlan()
+    {
+        var activePlan = PowerSchemeCatalog.Balanced;
+        var rule = ProcessPersistencePlan.BuildRule(
+            GameRow(),
+            includeHighPerformancePlan: true,
+            currentPowerPlan: activePlan,
+            createdUtc: new DateTime(2026, 6, 30, 12, 0, 0, DateTimeKind.Utc));
+
+        Assert.Equal("Game", rule.ProcessName);
+        Assert.Equal(ProcessPriorityLevel.High, rule.Priority);
+        Assert.Equal((long)0xFF, rule.AffinityMask);
+        Assert.Equal(PowerSchemeCatalog.HighPerformance, rule.PowerPlanWhileRunning);
+        Assert.Equal(activePlan, rule.PowerPlanWhenIdle);
+    }
+
+    [Fact]
+    public void Upsert_ReplacesByProcessName_CaseInsensitive()
+    {
+        var oldRule = ProcessPersistencePlan.BuildRule(GameRow(), false, null, DateTime.UnixEpoch);
+        var updated = oldRule with { ProcessName = "game", AffinityMask = (long)0xF };
+
+        var rules = ProcessPersistencePlan.Upsert(new[] { oldRule }, updated);
+
+        var only = Assert.Single(rules);
+        Assert.Equal((long)0xF, only.AffinityMask);
+    }
+
+    [Fact]
+    public void Remove_DropsOnlyMatchingProcessName()
+    {
+        var game = ProcessPersistencePlan.BuildRule(GameRow(), false, null, DateTime.UnixEpoch);
+        var other = game with { ProcessName = "Other", DisplayName = "Other" };
+
+        var rules = ProcessPersistencePlan.Remove(new[] { game, other }, "GAME");
+
+        Assert.Same(other, Assert.Single(rules));
+    }
+
+    [Fact]
+    public void RenderScript_IsInspectableAndLimitedToProcessPowerCfgWork()
+    {
+        var script = ProcessPersistencePlan.RenderScript();
+
+        Assert.Contains(ProcessPersistencePlan.RulesFileName, script);
+        Assert.Contains("Get-Process -Name", script);
+        Assert.Contains("PriorityClass", script);
+        Assert.Contains("ProcessorAffinity", script);
+        Assert.Contains("powercfg.exe /setactive", script);
+        Assert.Contains("tâche planifiée", script);
+        Assert.DoesNotContain("New-Service", script, System.StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("sc.exe create", script, System.StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Set-ItemProperty", script, System.StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Set-MpPreference", script, System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void TaskCommands_TargetVisibleAurumTaskName()
+    {
+        var create = ProcessPersistencePlan.BuildCreateTaskArgs(@"C:\Aurum\ApplyProcessRules.ps1");
+        var delete = ProcessPersistencePlan.BuildDeleteTaskArgs();
+        var query = ProcessPersistencePlan.BuildQueryTaskArgs();
+
+        Assert.Contains(ProcessPersistencePlan.TaskName, create);
+        Assert.Contains("/SC MINUTE", create);
+        Assert.Contains("/RL HIGHEST", create);
+        Assert.Contains("powershell.exe -NoProfile", create);
+        Assert.Contains(ProcessPersistencePlan.TaskName, delete);
+        Assert.Contains(ProcessPersistencePlan.TaskName, query);
+        Assert.DoesNotContain("/SVC", create, System.StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void PersistenceReport_StatusDisclosesTaskPresence()
+    {
+        var rule = ProcessPersistencePlan.BuildRule(GameRow(), false, null, DateTime.UnixEpoch);
+
+        var missing = new ProcessPersistenceReport(new[] { rule }, TaskInstalled: false, "rules", "script");
+        var active = new ProcessPersistenceReport(new[] { rule }, TaskInstalled: true, "rules", "script");
+
+        Assert.Contains("absente", missing.StateDisplay);
+        Assert.Contains("active", active.StateDisplay);
+        Assert.Contains("1", active.StateDisplay);
+    }
+}

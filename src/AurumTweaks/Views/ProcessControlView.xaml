@@ -6,7 +6,7 @@
         <StackPanel Margin="32,24,32,32">
             <TextBlock Text="Priorité &amp; affinité CPU" Style="{StaticResource Text.Display}"/>
             <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"
-                       Text="Donne à un jeu la priorité CPU sur les tâches de fond, et — sur un processeur hybride (cœurs P / cœurs E) — épingle-le sur les cœurs performance. Tout est lu en direct depuis Windows : chaque réglage est réappliqué puis relu, donc l'état affiché est le vrai. Aucun gain de FPS n'est promis — c'est de la régularité (moins de micro-saccades dues à l'ordonnanceur). Le réglage s'applique au processus en cours et n'est PAS permanent : au prochain lancement du jeu, ré-applique-le (Aurum ne tourne pas en arrière-plan)."/>
+                       Text="Donne à un jeu la priorité CPU sur les tâches de fond, et — sur un processeur hybride (cœurs P / cœurs E) — épingle-le sur les cœurs performance. Tout est lu en direct depuis Windows : chaque réglage est réappliqué puis relu, donc l'état affiché est le vrai. Aucun gain de FPS n'est promis — c'est de la régularité (moins de micro-saccades dues à l'ordonnanceur). La persistance est opt-in : Aurum écrit des règles locales et les applique via une tâche planifiée Windows visible, jamais via un driver."/>
 
             <Border Style="{StaticResource Card}">
                 <StackPanel>
@@ -20,6 +20,42 @@
                     <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,8,0,0" TextWrapping="Wrap"/>
                     <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
                                Text="« Temps réel » n'est volontairement pas proposé : cette priorité passe avant les threads système (clavier, souris, audio) et peut figer le PC. Un processus protégé (anticheat / système) que Windows refuse de modifier est affiché sans boutons — Aurum ne prétend pas pouvoir le changer."/>
+
+                    <Border Margin="0,14,0,0" Padding="14" CornerRadius="6"
+                            Background="{StaticResource Brush.Bg.Panel}"
+                            BorderBrush="{StaticResource Brush.Border.Default}"
+                            BorderThickness="1">
+                        <StackPanel>
+                            <TextBlock Text="Règles persistantes (opt-in)" Style="{StaticResource Text.Body}"/>
+                            <TextBlock Text="{Binding PersistenceStatus}" Style="{StaticResource Text.Muted}" Margin="0,3,0,0" TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding PersistenceLimit}" Style="{StaticResource Text.Muted}" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                <Button Content="Installer la tâche visible" Style="{StaticResource Button.Secondary}"
+                                        IsEnabled="{Binding CanInstallPersistenceTask}"
+                                        Command="{Binding InstallPersistenceTaskCommand}"/>
+                                <Button Content="Retirer la tâche" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                        IsEnabled="{Binding CanRemovePersistenceTask}"
+                                        Command="{Binding RemovePersistenceTaskCommand}"/>
+                            </StackPanel>
+
+                            <ItemsControl ItemsSource="{Binding PersistentRules}" Margin="0,10,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,3">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="{Binding SummaryDisplay}" Style="{StaticResource Text.Muted}" FontSize="11" TextWrapping="Wrap"/>
+                                            <Button Grid.Column="1" Content="Retirer" Style="{StaticResource Button.Tertiary}" Margin="10,0,0,0"
+                                                    Command="{Binding DataContext.RemovePersistentRuleCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
 
                     <ItemsControl ItemsSource="{Binding Processes}" Margin="0,12,0,0">
                         <ItemsControl.ItemTemplate>
@@ -96,6 +132,14 @@
                                                     Visibility="{Binding ShowOptimize, Converter={StaticResource BoolToVisibility}}"
                                                     Command="{Binding DataContext.OptimizeCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                     CommandParameter="{Binding}"/>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                                                <Button Content="Persister" Style="{StaticResource Button.Tertiary}"
+                                                        Command="{Binding DataContext.PersistCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"/>
+                                                <Button Content="Persister + plan perf" Style="{StaticResource Button.Tertiary}" Margin="6,0,0,0"
+                                                        Command="{Binding DataContext.PersistWithPowerPlanCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"/>
+                                            </StackPanel>
                                         </StackPanel>
                                     </Grid>
                                 </Border>

@@ -10,17 +10,23 @@ namespace AurumTweaks.ViewModels;
 /// « Priorité &amp; affinité CPU » page — list the running processes worth tuning and let the user raise a game's
 /// priority or pin it to the performance cores. Every action is real: after each change the page RE-READS the live
 /// state from Windows, so a refused write shows the unchanged priority/affinity rather than a fabricated success.
-/// It never claims FPS gains (only fewer scheduler-induced hitches) and discloses that a change is not persistent.
+/// It never claims FPS gains (only fewer scheduler-induced hitches). Persistence is opt-in through a visible scheduled
+/// task; no hidden driver/service is implied.
 /// </summary>
 public partial class ProcessControlViewModel : ObservableObject
 {
     private readonly IProcessControlService _service;
 
     public ObservableCollection<RunningProcessInfo> Processes { get; } = new();
+    public ObservableCollection<PersistentProcessRule> PersistentRules { get; } = new();
 
     [ObservableProperty] private string _headline = "Lecture des processus…";
     [ObservableProperty] private string _cpuSummary = string.Empty;
     [ObservableProperty] private string? _status;
+    [ObservableProperty] private string _persistenceStatus = "Règles persistantes non lues.";
+    [ObservableProperty] private string _persistenceLimit = ProcessPersistencePlan.UiLimit;
+    [ObservableProperty] private bool _canInstallPersistenceTask;
+    [ObservableProperty] private bool _canRemovePersistenceTask;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private bool _queryFailed;
 
@@ -51,6 +57,8 @@ public partial class ProcessControlViewModel : ObservableObject
 
     [RelayCommand] private Task SetAffinityAll(RunningProcessInfo? p)         => ApplyAffinity(p, AffinityStrategy.AllCores);
     [RelayCommand] private Task SetAffinityPerformance(RunningProcessInfo? p) => ApplyAffinity(p, AffinityStrategy.PerformanceCores);
+    [RelayCommand] private Task Persist(RunningProcessInfo? p) => AddPersistentRule(p, includeHighPerformancePowerPlan: false);
+    [RelayCommand] private Task PersistWithPowerPlan(RunningProcessInfo? p) => AddPersistentRule(p, includeHighPerformancePowerPlan: true);
 
     /// <summary>Apply the recommended priority+affinity in one click (the per-process advice the row already shows).</summary>
     [RelayCommand]
@@ -91,13 +99,59 @@ public partial class ProcessControlViewModel : ObservableObject
         IsBusy = false;
     }
 
+    [RelayCommand]
+    private async Task InstallPersistenceTaskAsync()
+    {
+        if (IsBusy) return;
+        IsBusy = true;
+        var ok = await _service.SetPersistenceTaskEnabledAsync(enabled: true);
+        await ReloadAsync();
+        Status = ok
+            ? "Tâche planifiée Aurum installée. Elle est visible dans le Planificateur de tâches Windows."
+            : "Impossible d'installer la tâche planifiée Aurum ; aucune règle n'a été appliquée en arrière-plan.";
+        IsBusy = false;
+    }
+
+    [RelayCommand]
+    private async Task RemovePersistenceTaskAsync()
+    {
+        if (IsBusy) return;
+        IsBusy = true;
+        var ok = await _service.SetPersistenceTaskEnabledAsync(enabled: false);
+        await ReloadAsync();
+        Status = ok
+            ? "Tâche planifiée Aurum retirée. Les règles locales restent consultables."
+            : "Impossible de retirer la tâche planifiée Aurum ; vérifie le Planificateur de tâches Windows.";
+        IsBusy = false;
+    }
+
+    [RelayCommand]
+    private async Task RemovePersistentRuleAsync(PersistentProcessRule? rule)
+    {
+        if (rule is null || IsBusy) return;
+        IsBusy = true;
+        var ok = await _service.RemovePersistentRuleAsync(rule.ProcessName);
+        await ReloadAsync();
+        Status = ok
+            ? $"Règle persistante retirée pour {rule.DisplayName}."
+            : "Impossible de retirer cette règle persistante.";
+        IsBusy = false;
+    }
+
     private async Task ReloadAsync()
     {
         Status = "Lecture des processus…";
-        var report = await _service.GetReportAsync();
+        var reportTask = _service.GetReportAsync();
+        var persistenceTask = _service.GetPersistenceReportAsync();
+        await Task.WhenAll(reportTask, persistenceTask);
+        var report = reportTask.Result;
+        var persistence = persistenceTask.Result;
 
         Processes.Clear();
         foreach (var proc in report.Processes) Processes.Add(proc);
+
+        PersistentRules.Clear();
+        foreach (var rule in persistence.Rules) PersistentRules.Add(rule);
 
         QueryFailed = !report.QueryOk;
         CpuSummary = report.CpuSummary;
@@ -105,7 +159,24 @@ public partial class ProcessControlViewModel : ObservableObject
             ? $"{report.GameCount} jeu(x) en cours · {report.Count} processus listé(s)"
             : "Impossible de lister les processus";
         Status = report.QueryOk
-            ? "Astuce : « Optimiser » applique la recommandation. Une modification s'applique au processus en cours — au prochain lancement, ré-applique-la."
+            ? "Astuce : « Optimiser » applique maintenant. « Persister » enregistre une règle locale, active seulement si tu installes la tâche planifiée."
             : "Aucun processus listé — accès refusé ou énumération impossible.";
+        PersistenceStatus = persistence.StateDisplay;
+        CanInstallPersistenceTask = persistence.Count > 0 && !persistence.TaskInstalled;
+        CanRemovePersistenceTask = persistence.TaskInstalled;
+    }
+
+    private async Task AddPersistentRule(RunningProcessInfo? p, bool includeHighPerformancePowerPlan)
+    {
+        if (p is null || IsBusy) return;
+        IsBusy = true;
+        var ok = await _service.AddPersistentRuleAsync(p, includeHighPerformancePowerPlan);
+        await ReloadAsync();
+        Status = ok
+            ? includeHighPerformancePowerPlan
+                ? $"Règle persistante enregistrée pour {p.DisplayName}, avec plan Performances élevées pendant l'exécution."
+                : $"Règle persistante enregistrée pour {p.DisplayName}."
+            : "Impossible d'enregistrer la règle persistante (processus inaccessible ou plan actif illisible).";
+        IsBusy = false;
     }
 }

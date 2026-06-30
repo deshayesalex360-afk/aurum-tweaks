@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace AurumTweaks.Services;
@@ -14,9 +17,9 @@ namespace AurumTweaks.Services;
 //  every change is a genuine SetPriorityClass / SetProcessAffinityMask the ViewModel RE-READS afterwards so
 //  a refused write surfaces the unchanged real state (never a fabricated "done"), a process Windows won't let
 //  us touch (anti-cheat / protected / higher integrity) is shown as inaccessible WITHOUT action buttons (no
-//  dead control), and the page never promises FPS — only scheduler consistency. It deliberately does NOT run
-//  a background agent: a change applies to the running process now and is lost when the game relaunches; the
-//  UI says so rather than pretending to be permanent like Process Lasso's service.
+//  dead control), and the page never promises FPS — only scheduler consistency. Persistence is opt-in through
+//  a visible Windows scheduled task and local JSON rules; no hidden service, ring-0 driver, injection, or firmware
+//  path is involved.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// <summary>Windows process priority classes, plus Unknown for a class we couldn't read.</summary>
@@ -297,6 +300,137 @@ public sealed record ProcessControlReport(IReadOnlyList<RunningProcessInfo> Proc
         : $"{Layout.LogicalCount} cœurs logiques";
 }
 
+public sealed record PersistentProcessRule(
+    string ProcessName,
+    string DisplayName,
+    ProcessPriorityLevel Priority,
+    long AffinityMask,
+    Guid? PowerPlanWhileRunning,
+    Guid? PowerPlanWhenIdle,
+    DateTime CreatedUtc)
+{
+    public string PriorityDisplay => PriorityLevels.Label(Priority);
+    public string AffinityDisplay => AffinityMask == 0 ? "—" : $"0x{unchecked((ulong)AffinityMask):X}";
+    public bool HasPowerPlan => PowerPlanWhileRunning.HasValue;
+    public string PowerPlanDisplay => HasPowerPlan
+        ? $"Plan perf pendant l'exécution · retour {PowerPlanWhenIdle?.ToString() ?? "non défini"}"
+        : "Plan d'alimentation non modifié";
+    public string SummaryDisplay => $"{DisplayName} · {PriorityDisplay} · affinité {AffinityDisplay} · {PowerPlanDisplay}";
+}
+
+public sealed record ProcessPersistenceReport(
+    IReadOnlyList<PersistentProcessRule> Rules,
+    bool TaskInstalled,
+    string RulesPath,
+    string ScriptPath)
+{
+    public int Count => Rules.Count;
+    public string StateDisplay => TaskInstalled
+        ? $"Tâche planifiée active · {Count} règle(s) persistante(s)."
+        : $"Tâche planifiée absente · {Count} règle(s) enregistrée(s).";
+}
+
+/// <summary>
+/// Pure persistent-rule planner. It emits a visible scheduled-task contract and an inspectable PowerShell script:
+/// match by process name, set a safe priority class, set the exact affinity mask, optionally switch the global Windows
+/// power plan while a matching process runs, then restore the captured idle plan when none run. No driver, service,
+/// ring-0 helper, injection, or hidden background agent is produced here.
+/// </summary>
+public static class ProcessPersistencePlan
+{
+    public const string TaskName = @"\Aurum Tweaks\Process Rules";
+    public const string RulesFileName = "process-rules.json";
+    public const string ScriptFileName = "ApplyProcessRules.ps1";
+    public static readonly Guid HighPerformancePlan = PowerSchemeCatalog.HighPerformance;
+
+    public const string UiLimit =
+        "Règles opt-in stockées localement et appliquées par une tâche planifiée Windows visible. Le plan d'alimentation Windows reste global : Aurum le bascule pendant qu'un processus correspondant est détecté, puis restaure le plan capturé quand aucun processus de règle n'est actif. Correspondance par nom de processus, sans driver ni service caché.";
+
+    public static PersistentProcessRule BuildRule(
+        RunningProcessInfo process,
+        bool includeHighPerformancePlan,
+        Guid? currentPowerPlan,
+        DateTime createdUtc)
+    {
+        var mask = AffinityPlan.Build(process.Advice.RecommendedAffinity, process.Layout);
+        return new PersistentProcessRule(
+            process.Name.Trim(),
+            process.DisplayName,
+            process.Advice.RecommendedPriority,
+            unchecked((long)mask),
+            includeHighPerformancePlan ? HighPerformancePlan : null,
+            includeHighPerformancePlan ? currentPowerPlan : null,
+            createdUtc);
+    }
+
+    public static IReadOnlyList<PersistentProcessRule> Upsert(
+        IReadOnlyList<PersistentProcessRule> existing,
+        PersistentProcessRule rule)
+    {
+        return existing
+            .Where(r => !string.Equals(r.ProcessName, rule.ProcessName, StringComparison.OrdinalIgnoreCase))
+            .Append(rule)
+            .OrderBy(r => r.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    public static IReadOnlyList<PersistentProcessRule> Remove(
+        IReadOnlyList<PersistentProcessRule> existing,
+        string processName) =>
+        existing
+            .Where(r => !string.Equals(r.ProcessName, processName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+    public static string RenderScript()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("# Aurum Tweaks - règles persistantes priorité/affinité");
+        sb.AppendLine("# Visible via la tâche planifiée " + TaskName);
+        sb.AppendLine("# Limites: correspondance par nom de processus; power plan global; aucun driver/service caché.");
+        sb.AppendLine("$ErrorActionPreference = 'SilentlyContinue'");
+        sb.AppendLine("$RulesPath = Join-Path $PSScriptRoot '" + RulesFileName + "'");
+        sb.AppendLine("if (-not (Test-Path -LiteralPath $RulesPath)) { return }");
+        sb.AppendLine("$rules = Get-Content -LiteralPath $RulesPath -Raw | ConvertFrom-Json");
+        sb.AppendLine("if ($null -eq $rules) { return }");
+        sb.AppendLine("if ($rules -isnot [System.Array]) { $rules = @($rules) }");
+        sb.AppendLine("function Convert-AurumPriority([int]$value) {");
+        sb.AppendLine("    switch ($value) {");
+        sb.AppendLine("        3 { 'Normal'; break }");
+        sb.AppendLine("        4 { 'AboveNormal'; break }");
+        sb.AppendLine("        5 { 'High'; break }");
+        sb.AppendLine("        default { $null; break }");
+        sb.AppendLine("    }");
+        sb.AppendLine("}");
+        sb.AppendLine("$runningPlan = $null");
+        sb.AppendLine("$idlePlan = $null");
+        sb.AppendLine("foreach ($rule in $rules) {");
+        sb.AppendLine("    $matches = Get-Process -Name $rule.ProcessName -ErrorAction SilentlyContinue");
+        sb.AppendLine("    if ($matches) {");
+        sb.AppendLine("        foreach ($p in $matches) {");
+        sb.AppendLine("            $priority = Convert-AurumPriority ([int]$rule.Priority)");
+        sb.AppendLine("            if ($priority) { try { $p.PriorityClass = $priority } catch {} }");
+        sb.AppendLine("            if ($rule.AffinityMask -ne 0) { try { $p.ProcessorAffinity = [IntPtr]([Int64]$rule.AffinityMask) } catch {} }");
+        sb.AppendLine("        }");
+        sb.AppendLine("        if ($rule.PowerPlanWhileRunning -and -not $runningPlan) { $runningPlan = [string]$rule.PowerPlanWhileRunning }");
+        sb.AppendLine("    } elseif ($rule.PowerPlanWhenIdle -and -not $idlePlan) {");
+        sb.AppendLine("        $idlePlan = [string]$rule.PowerPlanWhenIdle");
+        sb.AppendLine("    }");
+        sb.AppendLine("}");
+        sb.AppendLine("if ($runningPlan) { powercfg.exe /setactive $runningPlan | Out-Null }");
+        sb.AppendLine("elseif ($idlePlan) { powercfg.exe /setactive $idlePlan | Out-Null }");
+        return sb.ToString();
+    }
+
+    public static string BuildCreateTaskArgs(string scriptPath)
+    {
+        var tr = "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \\\"" + scriptPath + "\\\"";
+        return "/Create /TN \"" + TaskName + "\" /SC MINUTE /MO 1 /RL HIGHEST /TR \"" + tr + "\" /F";
+    }
+
+    public static string BuildDeleteTaskArgs() => "/Delete /TN \"" + TaskName + "\" /F";
+    public static string BuildQueryTaskArgs() => "/Query /TN \"" + TaskName + "\"";
+}
+
 /// <summary>
 /// Reads the CPU's per-logical-processor efficiency classes via the documented Win32 GetSystemCpuSetInformation,
 /// so the « performance cores » affinity preset targets the real P-cores. Pure glue, fully guarded: any failure
@@ -369,6 +503,7 @@ public sealed class ProcessControlService : IProcessControlService
 {
     private readonly IGameDetectionService _games;
     private IReadOnlyList<DetectedGame>? _gamesCache;
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     public ProcessControlService(IGameDetectionService games) => _games = games;
 
@@ -405,6 +540,87 @@ public sealed class ProcessControlService : IProcessControlService
         }
         catch { return false; }
     });
+
+    public Task<ProcessPersistenceReport> GetPersistenceReportAsync() => Task.Run(GetPersistenceReport);
+
+    public Task<bool> AddPersistentRuleAsync(RunningProcessInfo process, bool includeHighPerformancePowerPlan) =>
+        Task.Run(() => AddPersistentRule(process, includeHighPerformancePowerPlan));
+
+    public Task<bool> RemovePersistentRuleAsync(string processName) => Task.Run(() =>
+    {
+        if (string.IsNullOrWhiteSpace(processName)) return false;
+        var rules = ProcessPersistencePlan.Remove(ReadRules(), processName);
+        return WriteRules(rules);
+    });
+
+    public Task<bool> SetPersistenceTaskEnabledAsync(bool enabled) => Task.Run(() =>
+    {
+        if (!enabled)
+        {
+            var (exit, _) = ProcessRunner.Capture("schtasks.exe", ProcessPersistencePlan.BuildDeleteTaskArgs(), 20_000);
+            return exit == 0;
+        }
+
+        var rules = ReadRules();
+        if (rules.Count == 0) return false;
+        if (!WriteRules(rules)) return false;
+        var (createExit, _) = ProcessRunner.Capture("schtasks.exe", ProcessPersistencePlan.BuildCreateTaskArgs(ScriptPath), 20_000);
+        return createExit == 0;
+    });
+
+    private static bool AddPersistentRule(RunningProcessInfo process, bool includeHighPerformancePowerPlan)
+    {
+        if (!process.Accessible || string.IsNullOrWhiteSpace(process.Name)) return false;
+        Guid? currentPlan = includeHighPerformancePowerPlan ? QueryActivePowerPlan() : null;
+        if (includeHighPerformancePowerPlan && currentPlan is null) return false;
+
+        var rule = ProcessPersistencePlan.BuildRule(process, includeHighPerformancePowerPlan, currentPlan, DateTime.UtcNow);
+        var rules = ProcessPersistencePlan.Upsert(ReadRules(), rule);
+        return WriteRules(rules);
+    }
+
+    private static ProcessPersistenceReport GetPersistenceReport() =>
+        new(ReadRules(), TaskInstalled(), RulesPath, ScriptPath);
+
+    private static bool TaskInstalled()
+    {
+        var (exit, _) = ProcessRunner.Capture("schtasks.exe", ProcessPersistencePlan.BuildQueryTaskArgs(), 15_000);
+        return exit == 0;
+    }
+
+    private static Guid? QueryActivePowerPlan()
+    {
+        var (exit, stdout) = ProcessRunner.Capture("powercfg.exe", "/getactivescheme", 10_000);
+        return exit == 0 ? PowerSchemeParser.FirstGuid(stdout) : null;
+    }
+
+    private static IReadOnlyList<PersistentProcessRule> ReadRules()
+    {
+        try
+        {
+            if (!File.Exists(RulesPath)) return Array.Empty<PersistentProcessRule>();
+            return JsonSerializer.Deserialize<List<PersistentProcessRule>>(File.ReadAllText(RulesPath), JsonOptions)
+                   ?? new List<PersistentProcessRule>();
+        }
+        catch { return Array.Empty<PersistentProcessRule>(); }
+    }
+
+    private static bool WriteRules(IReadOnlyList<PersistentProcessRule> rules)
+    {
+        try
+        {
+            Directory.CreateDirectory(PersistenceDirectory);
+            File.WriteAllText(RulesPath, JsonSerializer.Serialize(rules, JsonOptions));
+            File.WriteAllText(ScriptPath, ProcessPersistencePlan.RenderScript(), Encoding.UTF8);
+            return true;
+        }
+        catch { return false; }
+    }
+
+    private static string PersistenceDirectory =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AurumTweaks", "ProcessRules");
+    private static string RulesPath => Path.Combine(PersistenceDirectory, ProcessPersistencePlan.RulesFileName);
+    private static string ScriptPath => Path.Combine(PersistenceDirectory, ProcessPersistencePlan.ScriptFileName);
 
     private static ProcessControlReport BuildReport(IReadOnlyList<DetectedGame> games)
     {

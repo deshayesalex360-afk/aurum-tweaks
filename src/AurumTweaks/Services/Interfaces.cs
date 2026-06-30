@@ -525,8 +525,9 @@ public interface IDriveHealthService
 /// The « priorité &amp; affinité CPU » manager — a Process-Lasso-class surface. Honest by construction: it reads each
 /// running process's real priority class and CPU-affinity mask from Windows, applies a change with the managed Process
 /// API, and returns whether Windows accepted it so the caller re-reads the true state (a refusal can never read as a
-/// fake « done »). It promises scheduler consistency, never FPS; it never runs a background agent, so a change applies
-/// to the running process and is lost on relaunch — and it warns before touching an anti-cheat-protected game.
+/// fake « done »). It promises scheduler consistency, never FPS. Persistent rules are opt-in, stored locally, and
+/// applied through a visible scheduled task — never a ring-0 driver or hidden service — and it warns before touching an
+/// anti-cheat-protected game.
 /// </summary>
 public interface IProcessControlService
 {
@@ -538,6 +539,18 @@ public interface IProcessControlService
 
     /// <summary>Set a process's CPU affinity to a preset (all cores, or performance cores on a hybrid CPU). Caller re-reads.</summary>
     Task<bool> SetAffinityAsync(int pid, AffinityStrategy strategy);
+
+    /// <summary>Read the saved opt-in persistence rules and whether Aurum's visible scheduled task exists.</summary>
+    Task<ProcessPersistenceReport> GetPersistenceReportAsync();
+
+    /// <summary>Add/update a persistence rule for the selected process. Optional power plan uses High Performance while running.</summary>
+    Task<bool> AddPersistentRuleAsync(RunningProcessInfo process, bool includeHighPerformancePowerPlan);
+
+    /// <summary>Remove a saved persistence rule by process name.</summary>
+    Task<bool> RemovePersistentRuleAsync(string processName);
+
+    /// <summary>Create or delete the visible scheduled task that applies saved rules.</summary>
+    Task<bool> SetPersistenceTaskEnabledAsync(bool enabled);
 }
 
 /// <summary>
