@@ -172,12 +172,269 @@ public sealed record DisplayGpuState(bool HagsPresent, string? HagsRaw, bool Mpo
     public string MpoDisplay => MpoDisabled ? "Désactivé (OverlayTestMode = 5)" : "Activé — défaut Windows";
 }
 
-public sealed record GameTweakReport(IReadOnlyList<GameTweakState> Tweaks, DisplayGpuState? DisplayGpu = null)
+public enum GameFeatureSupport { Supported, NotSupported, NotVerified }
+
+/// <summary>
+/// One READ-ONLY eligibility row for Windows/GPU gaming features. "Supported" is only used when the local facts are
+/// enough to say the platform side is present (OS/vendor/NVMe or an explicit registry state); "NotVerified" is the
+/// honest middle ground for driver-, display- or per-game-owned features Aurum cannot read back. No row has an action:
+/// this matrix diagnoses eligibility and points at the owner, it never pretends to enable Reflex/AFMF/APO/etc.
+/// </summary>
+public sealed record GameFeatureEligibility(
+    string Id,
+    string Name,
+    GameFeatureSupport Support,
+    string Evidence,
+    string Limit)
+{
+    public string SupportDisplay => Support switch
+    {
+        GameFeatureSupport.Supported    => "Supporté",
+        GameFeatureSupport.NotSupported => "Non supporté",
+        _                               => "Non vérifié"
+    };
+
+    public string SummaryDisplay => $"{SupportDisplay} · {Evidence}";
+    public bool HasLimit => !string.IsNullOrWhiteSpace(Limit);
+}
+
+public static class GameFeatureRegistry
+{
+    public const string GameBarKey = @"Software\Microsoft\GameBar";
+    public const string AutoGameModeValueName = "AutoGameModeEnabled";
+    public const string AllowGameModeValueName = "AllowAutoGameMode";
+    public const string DirectXUserGpuPreferencesKey = @"Software\Microsoft\DirectX\UserGpuPreferences";
+    public const string DirectXUserGlobalSettingsValueName = "DirectXUserGlobalSettings";
+}
+
+public sealed record GameFeatureEligibilityFacts(
+    string OsCaption,
+    string OsBuild,
+    bool IsWindows11,
+    string CpuName,
+    CpuFamily CpuFamily,
+    bool IsIntelCpu,
+    GpuVendor GpuVendor,
+    string GpuName,
+    bool StorageReadOk,
+    bool HasNvmeStorage,
+    DisplayGpuState DisplayGpu,
+    bool GameModeAutoPresent,
+    string? GameModeAutoRaw,
+    bool GameModeAllowPresent,
+    string? GameModeAllowRaw,
+    bool WindowedOptimizationsPresent,
+    string? WindowedOptimizationsRaw)
+{
+    public int OsBuildNumber => int.TryParse(OsBuild, out var build) ? build : 0;
+    public bool OsKnown => IsWindows11 || OsBuildNumber > 0 || !string.IsNullOrWhiteSpace(OsCaption);
+    public bool IsWindows10OrNewer =>
+        IsWindows11 || OsBuildNumber >= 10240 || Contains(OsCaption, "Windows 10") || Contains(OsCaption, "Windows 11");
+    public bool IsWindows10_2004OrNewer => IsWindows11 || OsBuildNumber >= 19041;
+    public bool IsWindows11OrNewer => IsWindows11 || Contains(OsCaption, "Windows 11");
+
+    private static bool Contains(string text, string token) =>
+        !string.IsNullOrWhiteSpace(text) && text.Contains(token, StringComparison.OrdinalIgnoreCase);
+}
+
+public static class GameFeatureEligibilityPlan
+{
+    public static IReadOnlyList<GameFeatureEligibility> Build(GameFeatureEligibilityFacts facts)
+    {
+        var rows = new List<GameFeatureEligibility>
+        {
+            Hags(facts),
+            GameMode(facts),
+            AutoHdr(facts),
+            Vrr(facts),
+            DirectStorage(facts),
+            IntelApo(facts),
+            Reflex(facts),
+            SmoothMotion(facts),
+            Afmf(facts),
+        };
+        return rows;
+    }
+
+    private static GameFeatureEligibility Hags(GameFeatureEligibilityFacts f)
+    {
+        const string limit = "Aurum lit le réglage Windows ; la prise en charge exacte et le gain restent côté pilote/jeu.";
+        if (f.OsKnown && !f.IsWindows10_2004OrNewer)
+            return Row("hags", "HAGS (ordonnancement GPU matériel)", GameFeatureSupport.NotSupported,
+                "Windows 10 2004+ ou Windows 11 requis.", limit);
+
+        return f.DisplayGpu.Hags switch
+        {
+            GpuToggleState.Enabled => Row("hags", "HAGS (ordonnancement GPU matériel)", GameFeatureSupport.Supported,
+                "Réglage Windows lu : activé (HwSchMode=2).", limit),
+            GpuToggleState.Disabled => Row("hags", "HAGS (ordonnancement GPU matériel)", GameFeatureSupport.Supported,
+                "Réglage Windows lu : désactivé (HwSchMode=1).", limit),
+            _ => Row("hags", "HAGS (ordonnancement GPU matériel)", GameFeatureSupport.NotVerified,
+                f.OsKnown ? "Aucun réglage forcé lu ; le pilote peut utiliser son défaut." : "Version Windows non lue.",
+                limit)
+        };
+    }
+
+    private static GameFeatureEligibility GameMode(GameFeatureEligibilityFacts f)
+    {
+        const string limit = "La matrice est informative ; le bouton Windows reste la source visuelle du réglage natif.";
+        if (f.OsKnown && !f.IsWindows10OrNewer)
+            return Row("game-mode", "Game Mode Windows", GameFeatureSupport.NotSupported,
+                "Windows 10/11 requis.", limit);
+
+        bool autoOn = Dword(f.GameModeAutoPresent, f.GameModeAutoRaw, "1");
+        bool allowOn = Dword(f.GameModeAllowPresent, f.GameModeAllowRaw, "1");
+        bool autoOff = Dword(f.GameModeAutoPresent, f.GameModeAutoRaw, "0");
+        bool allowOff = Dword(f.GameModeAllowPresent, f.GameModeAllowRaw, "0");
+        string evidence =
+            autoOn && allowOn ? "Registre lu : Game Mode activé (AutoGameModeEnabled=1, AllowAutoGameMode=1)."
+            : autoOff && allowOff ? "Registre lu : Game Mode désactivé par l'utilisateur."
+            : f.GameModeAutoPresent || f.GameModeAllowPresent ? "Registre lu : état Game Mode partiel ou personnalisé."
+            : "Aucune valeur utilisateur lue ; Windows peut appliquer son défaut.";
+
+        return Row("game-mode", "Game Mode Windows",
+            f.OsKnown ? GameFeatureSupport.Supported : GameFeatureSupport.NotVerified,
+            evidence, limit);
+    }
+
+    private static GameFeatureEligibility AutoHdr(GameFeatureEligibilityFacts f)
+    {
+        const string limit = "Aurum ne lit pas ici la capacité HDR de l'écran ni la compatibilité par jeu.";
+        if (f.OsKnown && !f.IsWindows11OrNewer)
+            return Row("auto-hdr", "Auto HDR", GameFeatureSupport.NotSupported,
+                "Windows 11 est requis pour l'éligibilité Auto HDR affichée ici.", limit);
+
+        return Row("auto-hdr", "Auto HDR", GameFeatureSupport.NotVerified,
+            WindowedOptimizationEvidence(f, "HDR automatique"),
+            limit);
+    }
+
+    private static GameFeatureEligibility Vrr(GameFeatureEligibilityFacts f)
+    {
+        const string limit = "Un écran VRR/Adaptive-Sync et un pilote compatible sont nécessaires ; Aurum ne lit pas ce handshake.";
+        if (f.OsKnown && !f.IsWindows11OrNewer)
+            return Row("vrr", "VRR / taux de rafraîchissement variable", GameFeatureSupport.NotSupported,
+                "L'éligibilité fenêtrée moderne est ciblée Windows 11.", limit);
+
+        return Row("vrr", "VRR / taux de rafraîchissement variable", GameFeatureSupport.NotVerified,
+            WindowedOptimizationEvidence(f, "VRR"),
+            limit);
+    }
+
+    private static GameFeatureEligibility DirectStorage(GameFeatureEligibilityFacts f)
+    {
+        const string limit = "Seuls les jeux qui intègrent DirectStorage en profitent ; Aurum ne teste pas l'API ni la décompression GPU.";
+        if (f.OsKnown && !f.IsWindows10_2004OrNewer)
+            return Row("directstorage", "DirectStorage", GameFeatureSupport.NotSupported,
+                "Windows 10 2004+ ou Windows 11 requis dans cette vérification.", limit);
+        if (!f.StorageReadOk)
+            return Row("directstorage", "DirectStorage", GameFeatureSupport.NotVerified,
+                "La liste des disques n'a pas été lue.", limit);
+        if (!f.HasNvmeStorage)
+            return Row("directstorage", "DirectStorage", GameFeatureSupport.NotSupported,
+                "Aucun SSD NVMe détecté.", limit);
+
+        return Row("directstorage", "DirectStorage", GameFeatureSupport.Supported,
+            "Socle local détecté : Windows compatible + SSD NVMe.", limit);
+    }
+
+    private static GameFeatureEligibility IntelApo(GameFeatureEligibilityFacts f)
+    {
+        const string limit = "APO dépend du CPU exact, du BIOS/DTT, de l'application Intel APO et de la liste de jeux Intel ; Aurum ne l'active pas.";
+        if (!f.IsIntelCpu)
+            return Row("intel-apo", "Intel APO", GameFeatureSupport.NotSupported,
+                "CPU Intel non détecté.", limit);
+
+        var evidence = f.CpuFamily is CpuFamily.IntelCore12 or CpuFamily.IntelCore13 or CpuFamily.IntelCore14 or CpuFamily.IntelCoreUltra
+            ? $"Plateforme Intel détectée ({CpuLabel(f)}), compatibilité exacte à vérifier dans Intel APO."
+            : $"CPU Intel détecté ({CpuLabel(f)}), génération APO non prouvée.";
+        return Row("intel-apo", "Intel APO", GameFeatureSupport.NotVerified, evidence, limit);
+    }
+
+    private static GameFeatureEligibility Reflex(GameFeatureEligibilityFacts f)
+    {
+        const string limit = "Reflex s'active dans les jeux compatibles ; Aurum ne peut pas forcer une option par jeu.";
+        if (f.GpuVendor != GpuVendor.Nvidia)
+            return Row("reflex", "NVIDIA Reflex", GameFeatureSupport.NotSupported,
+                "GPU NVIDIA non détecté.", limit);
+
+        return Row("reflex", "NVIDIA Reflex", GameFeatureSupport.Supported,
+            $"GPU NVIDIA détecté ({GpuLabel(f)}).", limit);
+    }
+
+    private static GameFeatureEligibility SmoothMotion(GameFeatureEligibilityFacts f)
+    {
+        const string limit = "Fonction NVIDIA App/pilote : Aurum ne lit ni le bascule NVIDIA App ni les profils de jeu.";
+        if (f.GpuVendor != GpuVendor.Nvidia)
+            return Row("smooth-motion", "NVIDIA Smooth Motion", GameFeatureSupport.NotSupported,
+                "GPU NVIDIA non détecté.", limit);
+
+        return Row("smooth-motion", "NVIDIA Smooth Motion", GameFeatureSupport.NotVerified,
+            $"GPU NVIDIA détecté ({GpuLabel(f)}), exigence RTX/pilote à vérifier dans NVIDIA App.", limit);
+    }
+
+    private static GameFeatureEligibility Afmf(GameFeatureEligibilityFacts f)
+    {
+        const string limit = "AFMF s'active dans AMD Software/Adrenalin ; Aurum ne lit pas ce bascule pilote.";
+        if (f.GpuVendor != GpuVendor.Amd)
+            return Row("afmf", "AMD Fluid Motion Frames (AFMF)", GameFeatureSupport.NotSupported,
+                "GPU AMD Radeon non détecté.", limit);
+        if (!LooksLikeModernRadeonForAfmf(f.GpuName))
+            return Row("afmf", "AMD Fluid Motion Frames (AFMF)", GameFeatureSupport.NotVerified,
+                $"GPU AMD détecté ({GpuLabel(f)}), génération AFMF non prouvée.", limit);
+
+        return Row("afmf", "AMD Fluid Motion Frames (AFMF)", GameFeatureSupport.Supported,
+            $"GPU AMD Radeon récent détecté ({GpuLabel(f)}).", limit);
+    }
+
+    private static string WindowedOptimizationEvidence(GameFeatureEligibilityFacts f, string featureName)
+    {
+        if (f.WindowedOptimizationsPresent && ContainsToken(f.WindowedOptimizationsRaw, "SwapEffectUpgradeEnable=1"))
+            return $"Optimisations pour jeux fenêtrés lues comme actives ; {featureName} dépend encore de l'écran/du jeu.";
+        if (f.WindowedOptimizationsPresent && ContainsToken(f.WindowedOptimizationsRaw, "SwapEffectUpgradeEnable=0"))
+            return $"Optimisations pour jeux fenêtrés lues comme désactivées ; {featureName} reste dépendant de l'écran/du jeu.";
+        if (f.WindowedOptimizationsPresent)
+            return $"Réglage DirectX global lu mais non reconnu ({f.WindowedOptimizationsRaw}).";
+        return $"Aucun réglage DirectX global lu ; {featureName} reste à vérifier dans Windows/le jeu.";
+    }
+
+    private static GameFeatureEligibility Row(string id, string name, GameFeatureSupport support, string evidence, string limit) =>
+        new(id, name, support, evidence, limit);
+
+    private static bool Dword(bool present, string? raw, string expected) =>
+        present && RegistryValue.Matches(raw, expected, RegistryValueType.DWord);
+
+    private static bool ContainsToken(string? raw, string token) =>
+        !string.IsNullOrWhiteSpace(raw) && raw.Contains(token, StringComparison.OrdinalIgnoreCase);
+
+    private static string CpuLabel(GameFeatureEligibilityFacts f) =>
+        string.IsNullOrWhiteSpace(f.CpuName) || f.CpuName == "Unknown" ? f.CpuFamily.ToString() : f.CpuName.Trim();
+
+    private static string GpuLabel(GameFeatureEligibilityFacts f) =>
+        string.IsNullOrWhiteSpace(f.GpuName) || f.GpuName == "Unknown" ? f.GpuVendor.ToString() : f.GpuName.Trim();
+
+    private static bool LooksLikeModernRadeonForAfmf(string gpuName)
+    {
+        if (string.IsNullOrWhiteSpace(gpuName)) return false;
+        var n = gpuName.ToUpperInvariant().Replace("-", " ");
+        return n.Contains("RX 6") || n.Contains("RX6")
+            || n.Contains("RX 7") || n.Contains("RX7")
+            || n.Contains("RX 8") || n.Contains("RX8")
+            || n.Contains("RX 9") || n.Contains("RX9")
+            || n.Contains("780M") || n.Contains("760M");
+    }
+}
+
+public sealed record GameTweakReport(
+    IReadOnlyList<GameTweakState> Tweaks,
+    DisplayGpuState? DisplayGpu = null,
+    IReadOnlyList<GameFeatureEligibility>? FeatureEligibility = null)
 {
     public int Total => Tweaks.Count;
     public int OptimizedCount => Tweaks.Count(t => t.IsOptimized);
     public int DefaultCount => Tweaks.Count(t => t.IsDefault);
     public int CustomCount => Tweaks.Count(t => t.IsCustomValue);
+    public IReadOnlyList<GameFeatureEligibility> FeatureEligibilityRows => FeatureEligibility ?? Array.Empty<GameFeatureEligibility>();
 
     public bool AllOptimized => Tweaks.Count > 0 && Tweaks.All(t => t.IsOptimized);
     public bool NoneOptimized => Tweaks.All(t => !t.IsOptimized);
@@ -193,12 +450,21 @@ public sealed record GameTweakReport(IReadOnlyList<GameTweakState> Tweaks, Displ
 public sealed class GameOptiService : IGameOptiService
 {
     private readonly IRegistryService _registry;
+    private readonly IHardwareService _hardware;
 
-    public GameOptiService(IRegistryService registry) => _registry = registry;
+    public GameOptiService(IRegistryService registry, IHardwareService hardware)
+    {
+        _registry = registry;
+        _hardware = hardware;
+    }
 
-    public Task<GameTweakReport> GetReportAsync() => Task.Run(GetReport);
+    public async Task<GameTweakReport> GetReportAsync()
+    {
+        var hardware = await _hardware.DetectAsync();
+        return await Task.Run(() => GetReport(hardware));
+    }
 
-    private GameTweakReport GetReport()
+    private GameTweakReport GetReport(HardwareInfo hardware)
     {
         var states = new List<GameTweakState>(GameTweakCatalog.Tweaks.Count);
         foreach (var t in GameTweakCatalog.Tweaks)
@@ -213,7 +479,32 @@ public sealed class GameOptiService : IGameOptiService
         bool mpoPresent = _registry.TryReadValue("HKLM", DisplayGpuState.MpoKey, DisplayGpuState.MpoValueName, out var mpoRaw);
         var gpu = new DisplayGpuState(hagsPresent, hagsPresent ? hagsRaw : null, mpoPresent, mpoPresent ? mpoRaw : null);
 
-        return new GameTweakReport(states, gpu);
+        bool gameModeAutoPresent = _registry.TryReadValue("HKCU", GameFeatureRegistry.GameBarKey, GameFeatureRegistry.AutoGameModeValueName, out var gameModeAutoRaw);
+        bool gameModeAllowPresent = _registry.TryReadValue("HKCU", GameFeatureRegistry.GameBarKey, GameFeatureRegistry.AllowGameModeValueName, out var gameModeAllowRaw);
+        bool windowedPresent = _registry.TryReadValue("HKCU", GameFeatureRegistry.DirectXUserGpuPreferencesKey, GameFeatureRegistry.DirectXUserGlobalSettingsValueName, out var windowedRaw);
+
+        bool storageReadOk = hardware.StorageDevices.Count > 0;
+        bool hasNvme = hardware.StorageDevices.Any(d => d.BusType.Contains("NVMe", StringComparison.OrdinalIgnoreCase));
+        var facts = new GameFeatureEligibilityFacts(
+            hardware.OsCaption,
+            hardware.OsBuild,
+            hardware.IsWindows11,
+            hardware.CpuName,
+            hardware.DetectedFamily,
+            hardware.IsIntel,
+            hardware.GpuVendor,
+            hardware.GpuPrimary,
+            storageReadOk,
+            hasNvme,
+            gpu,
+            gameModeAutoPresent,
+            gameModeAutoPresent ? gameModeAutoRaw : null,
+            gameModeAllowPresent,
+            gameModeAllowPresent ? gameModeAllowRaw : null,
+            windowedPresent,
+            windowedPresent ? windowedRaw : null);
+
+        return new GameTweakReport(states, gpu, GameFeatureEligibilityPlan.Build(facts));
     }
 
     public Task<bool> SetOptimizedAsync(string tweakId, bool optimize) => Task.Run(() => SetOptimized(tweakId, optimize));

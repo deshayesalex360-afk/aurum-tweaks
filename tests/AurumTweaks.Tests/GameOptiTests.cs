@@ -322,12 +322,129 @@ public class DisplayGpuStateTests
     }
 }
 
+public class GameFeatureEligibilityPlanTests
+{
+    private static GameFeatureEligibilityFacts Facts(
+        string osBuild = "22631",
+        bool win11 = true,
+        string cpuName = "AMD Ryzen 7 7800X3D",
+        CpuFamily cpuFamily = CpuFamily.Ryzen7000X3D,
+        bool intel = false,
+        GpuVendor gpuVendor = GpuVendor.Nvidia,
+        string gpuName = "NVIDIA GeForce RTX 4070",
+        bool storageReadOk = true,
+        bool nvme = true,
+        DisplayGpuState? gpuState = null,
+        bool gameModePresent = true,
+        string? gameModeRaw = "1",
+        bool windowedPresent = true,
+        string? windowedRaw = "SwapEffectUpgradeEnable=1;")
+        => new(
+            OsCaption: win11 ? "Microsoft Windows 11 Pro" : "Microsoft Windows 10 Pro",
+            OsBuild: osBuild,
+            IsWindows11: win11,
+            CpuName: cpuName,
+            CpuFamily: cpuFamily,
+            IsIntelCpu: intel,
+            GpuVendor: gpuVendor,
+            GpuName: gpuName,
+            StorageReadOk: storageReadOk,
+            HasNvmeStorage: nvme,
+            DisplayGpu: gpuState ?? new DisplayGpuState(true, "2", false, null),
+            GameModeAutoPresent: gameModePresent,
+            GameModeAutoRaw: gameModeRaw,
+            GameModeAllowPresent: gameModePresent,
+            GameModeAllowRaw: gameModeRaw,
+            WindowedOptimizationsPresent: windowedPresent,
+            WindowedOptimizationsRaw: windowedRaw);
+
+    private static GameFeatureEligibility Row(IReadOnlyList<GameFeatureEligibility> rows, string id)
+        => rows.Single(r => r.Id == id);
+
+    [Fact]
+    public void NvidiaWin11Nvme_ReportsSupportedCoreRows_AndDriverOwnedCaveats()
+    {
+        var rows = GameFeatureEligibilityPlan.Build(Facts());
+
+        Assert.Equal(GameFeatureSupport.Supported, Row(rows, "hags").Support);
+        Assert.Contains("HwSchMode=2", Row(rows, "hags").Evidence);
+        Assert.Equal(GameFeatureSupport.Supported, Row(rows, "game-mode").Support);
+        Assert.Contains("AutoGameModeEnabled=1", Row(rows, "game-mode").Evidence);
+        Assert.Equal(GameFeatureSupport.Supported, Row(rows, "directstorage").Support);
+        Assert.Equal(GameFeatureSupport.Supported, Row(rows, "reflex").Support);
+        Assert.Equal(GameFeatureSupport.NotVerified, Row(rows, "smooth-motion").Support);
+        Assert.Contains("NVIDIA App", Row(rows, "smooth-motion").Limit);
+        Assert.Equal(GameFeatureSupport.NotSupported, Row(rows, "afmf").Support);
+    }
+
+    [Fact]
+    public void AmdModernRadeon_ReportsAfmfCandidate_AndNoNvidiaFeatures()
+    {
+        var rows = GameFeatureEligibilityPlan.Build(Facts(
+            gpuVendor: GpuVendor.Amd,
+            gpuName: "AMD Radeon RX 7900 XTX"));
+
+        Assert.Equal(GameFeatureSupport.Supported, Row(rows, "afmf").Support);
+        Assert.Contains("Radeon récent", Row(rows, "afmf").Evidence);
+        Assert.Equal(GameFeatureSupport.NotSupported, Row(rows, "reflex").Support);
+        Assert.Equal(GameFeatureSupport.NotSupported, Row(rows, "smooth-motion").Support);
+    }
+
+    [Fact]
+    public void IntelCpu_KeepsApoNotVerified_NotEnabled()
+    {
+        var rows = GameFeatureEligibilityPlan.Build(Facts(
+            cpuName: "Intel Core i7-14700K",
+            cpuFamily: CpuFamily.IntelCore14,
+            intel: true));
+
+        var apo = Row(rows, "intel-apo");
+        Assert.Equal(GameFeatureSupport.NotVerified, apo.Support);
+        Assert.Contains("Intel APO", apo.Evidence);
+        Assert.Contains("Aurum ne l'active pas", apo.Limit);
+    }
+
+    [Fact]
+    public void OldWindows_DoesNotClaimHagsAutoHdrOrDirectStorage()
+    {
+        var rows = GameFeatureEligibilityPlan.Build(Facts(
+            osBuild: "18362",
+            win11: false,
+            gpuState: new DisplayGpuState(false, null, false, null)));
+
+        Assert.Equal(GameFeatureSupport.NotSupported, Row(rows, "hags").Support);
+        Assert.Equal(GameFeatureSupport.NotSupported, Row(rows, "auto-hdr").Support);
+        Assert.Equal(GameFeatureSupport.NotSupported, Row(rows, "vrr").Support);
+        Assert.Equal(GameFeatureSupport.NotSupported, Row(rows, "directstorage").Support);
+    }
+
+    [Fact]
+    public void Win11AutoHdrAndVrr_RemainNotVerified_WhenDisplayHandshakeIsNotRead()
+    {
+        var rows = GameFeatureEligibilityPlan.Build(Facts());
+
+        Assert.Equal(GameFeatureSupport.NotVerified, Row(rows, "auto-hdr").Support);
+        Assert.Contains("écran", Row(rows, "auto-hdr").Limit);
+        Assert.Equal(GameFeatureSupport.NotVerified, Row(rows, "vrr").Support);
+        Assert.Contains("Adaptive-Sync", Row(rows, "vrr").Limit);
+    }
+
+    [Fact]
+    public void MissingStorageRead_DoesNotCallDirectStorageUnsupported()
+    {
+        var rows = GameFeatureEligibilityPlan.Build(Facts(storageReadOk: false, nvme: false));
+
+        Assert.Equal(GameFeatureSupport.NotVerified, Row(rows, "directstorage").Support);
+        Assert.Contains("n'a pas été lue", Row(rows, "directstorage").Evidence);
+    }
+}
+
 public class GameOptiServiceTests
 {
-    private static (GameOptiService svc, FakeRegistryService reg) New()
+    private static (GameOptiService svc, FakeRegistryService reg) New(HardwareInfo? hardware = null)
     {
         var reg = new FakeRegistryService(new EventLog());
-        return (new GameOptiService(reg), reg);
+        return (new GameOptiService(reg, new FakeHardwareService(hardware ?? new HardwareInfo())), reg);
     }
 
     private static string PathOf(GameTweak t) => $"{t.Hive}\\{t.Key}\\{t.ValueName}";
@@ -365,6 +482,34 @@ public class GameOptiServiceTests
         Assert.NotNull(r.DisplayGpu);
         Assert.Equal(GpuToggleState.Enabled, r.DisplayGpu!.Hags);
         Assert.True(r.DisplayGpu.MpoDisabled);
+    }
+
+    [Fact]
+    public async Task GetReport_BuildsFeatureEligibility_FromHardwareAndRegistry()
+    {
+        var hw = new HardwareInfo
+        {
+            OsCaption = "Microsoft Windows 11 Pro",
+            OsBuild = "22631",
+            IsWindows11 = true,
+            CpuName = "AMD Ryzen 7 7800X3D",
+            DetectedFamily = CpuFamily.Ryzen7000X3D,
+            GpuVendor = GpuVendor.Nvidia,
+            GpuPrimary = "NVIDIA GeForce RTX 4070",
+            StorageDevices = { new StorageDevice { BusType = "NVMe", MediaType = "SSD", Model = "Test NVMe" } }
+        };
+        var (svc, reg) = New(hw);
+        reg.Seed("HKLM", DisplayGpuState.HagsKey, DisplayGpuState.HagsValueName, "2");
+        reg.Seed("HKCU", GameFeatureRegistry.GameBarKey, GameFeatureRegistry.AutoGameModeValueName, "1");
+        reg.Seed("HKCU", GameFeatureRegistry.GameBarKey, GameFeatureRegistry.AllowGameModeValueName, "1");
+        reg.Seed("HKCU", GameFeatureRegistry.DirectXUserGpuPreferencesKey,
+            GameFeatureRegistry.DirectXUserGlobalSettingsValueName, "SwapEffectUpgradeEnable=1;");
+
+        var r = await svc.GetReportAsync();
+
+        Assert.Contains(r.FeatureEligibilityRows, x => x.Id == "directstorage" && x.Support == GameFeatureSupport.Supported);
+        Assert.Contains(r.FeatureEligibilityRows, x => x.Id == "game-mode" && x.Evidence.Contains("AutoGameModeEnabled=1"));
+        Assert.Contains(r.FeatureEligibilityRows, x => x.Id == "smooth-motion" && x.Support == GameFeatureSupport.NotVerified);
     }
 
     /// <summary>

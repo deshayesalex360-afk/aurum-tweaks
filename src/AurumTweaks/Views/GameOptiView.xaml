@@ -87,22 +87,40 @@
             <Border Style="{StaticResource Card}" Margin="0,16,0,0"
                     Visibility="{Binding HasGpuInfo, Converter={StaticResource BoolToVisibility}}">
                 <StackPanel>
-                    <TextBlock Text="GPU et affichage (lecture seule)" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                    <TextBlock Text="Éligibilité jeu / affichage (lecture seule)" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
                     <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
-                               Text="Deux réglages que la scène recherche mais qu'Aurum ne modifie pas ici : leur défaut varie selon le GPU/pilote et un redémarrage est requis. On affiche leur état réel, lu dans le registre — le changement se fait dans les paramètres Windows."/>
+                               Text="Aurum affiche ce qui peut être établi localement : OS, GPU, NVMe et quelques valeurs Windows lues en direct. Cette matrice ne modifie rien et ne prétend pas activer les fonctions propriétaires NVIDIA/AMD/Intel : Reflex, Smooth Motion, AFMF et APO restent côté pilote, application ou jeu compatible."/>
 
-                    <Border Style="{StaticResource Card.Compact}" Margin="0,12,0,0">
-                        <StackPanel>
-                            <TextBlock Text="Ordonnancement GPU matériel (HAGS)" Style="{StaticResource Text.Body}"/>
-                            <TextBlock Style="{StaticResource Text.Muted}" Margin="0,2,0,0">
-                                <Run Text="État : "/>
-                                <Run Text="{Binding DisplayGpu.HagsDisplay, Mode=OneWay}"/>
-                                <Run Text=" · HwSchMode"/>
-                            </TextBlock>
-                            <TextBlock Style="{StaticResource Text.Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"
-                                       Text="Confie une partie de l'ordonnancement GPU au matériel. Effet variable selon le jeu et le pilote. Se règle dans « Paramètres graphiques » (bouton ci-dessus)."/>
-                        </StackPanel>
-                    </Border>
+                    <ItemsControl ItemsSource="{Binding FeatureEligibility}" Margin="0,12,0,0"
+                                  Visibility="{Binding HasFeatureEligibility, Converter={StaticResource BoolToVisibility}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card.Compact}" Margin="0,5">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                            <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding Evidence}" Style="{StaticResource Text.Muted}"
+                                                       FontSize="11" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                            <TextBlock Text="{Binding Limit}" Style="{StaticResource Text.Muted}"
+                                                       FontSize="11" TextWrapping="Wrap" Margin="0,3,0,0"
+                                                       Visibility="{Binding HasLimit, Converter={StaticResource BoolToVisibility}}"/>
+                                        </StackPanel>
+
+                                        <Border Grid.Column="1" Style="{StaticResource Badge.Gold}" Padding="6,2"
+                                                VerticalAlignment="Top">
+                                            <TextBlock Text="{Binding SupportDisplay}" FontSize="9" FontWeight="Bold"
+                                                       Foreground="{StaticResource Brush.Gold.Bright}"/>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
 
                     <Border Style="{StaticResource Card.Compact}" Margin="0,8,0,0">
                         <StackPanel>

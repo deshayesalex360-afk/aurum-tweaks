@@ -18,6 +18,7 @@ public partial class GameOptiViewModel : ObservableObject
     private readonly IGameOptiService _service;
 
     public ObservableCollection<GameTweakState> Tweaks { get; } = new();
+    public ObservableCollection<GameFeatureEligibility> FeatureEligibility { get; } = new();
 
     [ObservableProperty] private string? _status;
     [ObservableProperty] private bool _isBusy;
@@ -25,6 +26,7 @@ public partial class GameOptiViewModel : ObservableObject
     // Read-only state for the two settings the page surfaces but never writes (HAGS / MPO). Null until the first read.
     [ObservableProperty] private DisplayGpuState? _displayGpu;
     [ObservableProperty] private bool _hasGpuInfo;
+    [ObservableProperty] private bool _hasFeatureEligibility;
 
     public GameOptiViewModel(IGameOptiService service)
     {
@@ -44,6 +46,10 @@ public partial class GameOptiViewModel : ObservableObject
 
         DisplayGpu = report.DisplayGpu;
         HasGpuInfo = report.DisplayGpu is not null;
+
+        FeatureEligibility.Clear();
+        foreach (var row in report.FeatureEligibilityRows) FeatureEligibility.Add(row);
+        HasFeatureEligibility = FeatureEligibility.Count > 0;
 
         Status = report.AllOptimized
             ? $"Optimisé · {report.OptimizedCount}/{report.Total} réglage(s) appliqué(s)."

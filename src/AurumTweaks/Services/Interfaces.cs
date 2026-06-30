@@ -700,11 +700,12 @@ public interface IPrivacyService
 /// network throttle, background CPU reservation, Game DVR background recording). Reads each tweak's live value (absent
 /// = Windows default, never a fabricated « optimisé ») and applies real, reversible writes the caller re-reads. The
 /// gain is variable and configuration-dependent — no FPS figure is promised, and a reboot/relog may be needed for some
-/// to take full effect. GPU scheduling (HAGS) is handed off to Windows' own settings, not faked here.
+/// to take full effect. The feature-eligibility matrix is read-only: it reports HAGS/Game Mode/Auto HDR/VRR/
+/// DirectStorage/APO/Reflex/Smooth Motion/AFMF from local facts, and never claims Aurum enables driver-owned features.
 /// </summary>
 public interface IGameOptiService
 {
-    /// <summary>Read every curated tweak's live state. An unreadable/absent key reads as the Windows default, never a fake « optimisé ».</summary>
+    /// <summary>Read every curated tweak's live state plus the read-only feature eligibility matrix. An unreadable/absent key reads honestly, never as a fake « optimisé » or fake support.</summary>
     Task<GameTweakReport> GetReportAsync();
 
     /// <summary>Set one tweak to its optimised (performance) or default (Windows) value. Unknown id → false. Caller re-reads.</summary>
