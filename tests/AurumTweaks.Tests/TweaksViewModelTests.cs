@@ -117,6 +117,19 @@ public class TweaksViewModelTests
     }
 
     [Fact]
+    public async Task ExportSelectionScripts_WhenNothingSelected_SaysSo_BeforeOpeningAFileDialog()
+    {
+        var t = new Tweak { Id = "x", Name = new() { ["fr"] = "X" } };
+        var tweaks = new RecordingTweakService();
+        var vm = await NewVm(tweaks, t);
+
+        await vm.ExportSelectionScriptsCommand.ExecuteAsync(null);
+
+        Assert.Empty(tweaks.Applied);
+        Assert.Equal("Aucun tweak sélectionné à exporter.", vm.StatusMessage);
+    }
+
+    [Fact]
     public async Task RevertAll_WhenNothingApplied_SaysSo_AndNeverTouchesBackend()
     {
         var t = new Tweak { Id = "x", Name = new() { ["fr"] = "X" } };   // nothing applied to revert

@@ -1,5 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
+using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using AurumTweaks.Models;
 using Serilog;
@@ -105,6 +109,308 @@ public static class TweakOperationAction
             default:
                 return null;
         }
+    }
+}
+
+public sealed record TweakScriptBundle(
+    string ApplyPowerShellFileName,
+    string RevertPowerShellFileName,
+    string ApplyRegistryFileName,
+    string RevertRegistryFileName,
+    string ApplyPowerShell,
+    string RevertPowerShell,
+    string ApplyRegistry,
+    string RevertRegistry,
+    int TweakCount,
+    int RegistryOperationCount,
+    int ScriptOperationCount,
+    int IrreversibleOperationCount)
+{
+    public bool HasRegistryOperations => RegistryOperationCount > 0;
+    public bool HasScriptOperations => ScriptOperationCount > 0;
+}
+
+/// <summary>
+/// Pure renderer for the Tweaks export pack. It consumes <see cref="TweakOperationAction.Build"/>, the same dispatch
+/// the engine executes, then emits inspectable apply/revert PowerShell scripts plus companion .reg files. The scripts
+/// import their matching .reg file first, then run service/shell operations while accumulating failures like the engine
+/// batch loop does. Missing revert actions are rendered as explicit failing steps, never as a silent success.
+/// </summary>
+public static class TweakScriptExportRenderer
+{
+    public static TweakScriptBundle Build(IEnumerable<Tweak> tweaks, string baseName = "aurum-tweaks-selection")
+    {
+        var list = tweaks?.ToList() ?? new List<Tweak>();
+        var stem = SanitizeFileStem(baseName);
+        var applyPsName = $"{stem}.apply.ps1";
+        var revertPsName = $"{stem}.revert.ps1";
+        var applyRegName = $"{stem}.apply.reg";
+        var revertRegName = $"{stem}.revert.reg";
+
+        var applyReg = CreateRegHeader("application", applyPsName);
+        var revertReg = CreateRegHeader("restauration", revertPsName);
+        var applySteps = new StringBuilder();
+        var revertSteps = new StringBuilder();
+
+        int registryOps = 0, scriptOps = 0, irreversibleOps = 0;
+
+        foreach (var tweak in list)
+        {
+            AppendPowerShellComment(applySteps, $"Tweak {tweak.Id}");
+            AppendPowerShellComment(revertSteps, $"Tweak {tweak.Id}");
+            applyReg.AppendLine($"; Tweak {tweak.Id}");
+            revertReg.AppendLine($"; Tweak {tweak.Id}");
+
+            foreach (var op in tweak.Operations)
+            {
+                var apply = TweakOperationAction.Build(op, applying: true);
+                var revert = TweakOperationAction.Build(op, applying: false);
+
+                if (apply is RegistryTweakAction applyRegistry)
+                {
+                    AppendRegistryAction(applyReg, applyRegistry);
+                    registryOps++;
+                }
+                else
+                {
+                    AppendPowerShellAction(applySteps, tweak.Id, op, apply, applying: true);
+                    scriptOps++;
+                }
+
+                if (revert is RegistryTweakAction revertRegistry)
+                {
+                    AppendRegistryAction(revertReg, revertRegistry);
+                }
+                else
+                {
+                    AppendPowerShellAction(revertSteps, tweak.Id, op, revert, applying: false);
+                }
+
+                if (!CanExecute(revert))
+                    irreversibleOps++;
+            }
+
+            applyReg.AppendLine();
+            revertReg.AppendLine();
+        }
+
+        if (registryOps == 0)
+        {
+            applyReg.AppendLine("; Aucune modification Registre dans cette sélection.");
+            revertReg.AppendLine("; Aucune restauration Registre dans cette sélection.");
+        }
+
+        if (scriptOps == 0)
+        {
+            AppendPowerShellComment(applySteps, "Aucune commande PowerShell/service dans cette sélection.");
+            AppendPowerShellComment(revertSteps, "Aucune commande PowerShell/service dans cette sélection.");
+        }
+
+        return new TweakScriptBundle(
+            applyPsName,
+            revertPsName,
+            applyRegName,
+            revertRegName,
+            RenderPowerShell("application", applyRegName, registryOps > 0, applySteps.ToString()),
+            RenderPowerShell("restauration", revertRegName, registryOps > 0, revertSteps.ToString()),
+            applyReg.ToString(),
+            revertReg.ToString(),
+            list.Count,
+            registryOps,
+            scriptOps,
+            irreversibleOps);
+    }
+
+    private static bool CanExecute(TweakEngineAction? action) => action switch
+    {
+        null => false,
+        ShellTweakAction shell => !string.IsNullOrWhiteSpace(shell.Arguments),
+        _ => true
+    };
+
+    private static StringBuilder CreateRegHeader(string purpose, string scriptName)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("Windows Registry Editor Version 5.00");
+        sb.AppendLine();
+        sb.AppendLine($"; Aurum Tweaks - {purpose}");
+        sb.AppendLine($"; Importé par {scriptName} ou inspecté manuellement.");
+        sb.AppendLine("; Limite: l'import exige les droits administrateur et peut être refusé par Windows/politique.");
+        sb.AppendLine();
+        return sb;
+    }
+
+    private static string RenderPowerShell(string purpose, string regFileName, bool importsRegistry, string body)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("# Aurum Tweaks - script de " + purpose);
+        sb.AppendLine("# Inspectable: généré depuis la sélection; rien n'a été exécuté pendant l'export.");
+        sb.AppendLine("# Limite: les droits administrateur et les protections Windows peuvent refuser une étape.");
+        sb.AppendLine("# Registre: ce script force la vue 64 bits, comme l'application Aurum Tweaks x64.");
+        sb.AppendLine("$ErrorActionPreference = 'Stop'");
+        sb.AppendLine("$AurumFailures = 0");
+        sb.AppendLine();
+        sb.AppendLine("function Invoke-AurumStep {");
+        sb.AppendLine("    param([string]$Label, [scriptblock]$Step)");
+        sb.AppendLine("    try { & $Step }");
+        sb.AppendLine("    catch {");
+        sb.AppendLine("        $script:AurumFailures++");
+        sb.AppendLine("        Write-Error -ErrorAction Continue ($Label + ' : ' + $_.Exception.Message)");
+        sb.AppendLine("    }");
+        sb.AppendLine("}");
+        sb.AppendLine();
+        sb.AppendLine("function Invoke-AurumProcess {");
+        sb.AppendLine("    param([string]$Label, [string]$FileName, [string]$Arguments)");
+        sb.AppendLine("    Invoke-AurumStep $Label {");
+        sb.AppendLine("        $p = Start-Process -FilePath $FileName -ArgumentList $Arguments -Wait -PassThru -NoNewWindow");
+        sb.AppendLine("        if ($null -eq $p) { throw 'Processus non démarré.' }");
+        sb.AppendLine("        if ($p.ExitCode -ne 0) { throw ('Code de sortie ' + $p.ExitCode + '.') }");
+        sb.AppendLine("    }");
+        sb.AppendLine("}");
+        sb.AppendLine();
+        sb.AppendLine("function Set-AurumServiceStartup {");
+        sb.AppendLine("    param([string]$ServiceName, [string]$StartupType)");
+        sb.AppendLine("    $root = [Microsoft.Win32.RegistryKey]::OpenBaseKey([Microsoft.Win32.RegistryHive]::LocalMachine, [Microsoft.Win32.RegistryView]::Registry64)");
+        sb.AppendLine("    $key = $root.OpenSubKey('SYSTEM\\CurrentControlSet\\Services\\' + $ServiceName, $true)");
+        sb.AppendLine("    if ($null -eq $key) { $root.Dispose(); throw ('Service introuvable: ' + $ServiceName) }");
+        sb.AppendLine("    $start = switch ($StartupType.ToLowerInvariant()) {");
+        sb.AppendLine("        'boot' { 0; break }");
+        sb.AppendLine("        'system' { 1; break }");
+        sb.AppendLine("        'automatic' { 2; break }");
+        sb.AppendLine("        'auto' { 2; break }");
+        sb.AppendLine("        'delayedauto' { 2; break }");
+        sb.AppendLine("        'manual' { 3; break }");
+        sb.AppendLine("        'disabled' { 4; break }");
+        sb.AppendLine("        default { 3; break }");
+        sb.AppendLine("    }");
+        sb.AppendLine("    $delayed = if ($StartupType.Equals('DelayedAuto', [StringComparison]::OrdinalIgnoreCase)) { 1 } else { 0 }");
+        sb.AppendLine("    try {");
+        sb.AppendLine("        $key.SetValue('Start', [int]$start, [Microsoft.Win32.RegistryValueKind]::DWord)");
+        sb.AppendLine("        $key.SetValue('DelayedAutostart', [int]$delayed, [Microsoft.Win32.RegistryValueKind]::DWord)");
+        sb.AppendLine("    }");
+        sb.AppendLine("    finally { $key.Dispose(); $root.Dispose() }");
+        sb.AppendLine("}");
+        sb.AppendLine();
+
+        if (importsRegistry)
+        {
+            sb.AppendLine("$AurumRegistryFile = Join-Path $PSScriptRoot '" + EscapePowerShellSingleQuoted(regFileName) + "'");
+            sb.AppendLine("Invoke-AurumStep 'Registre: import " + EscapePowerShellSingleQuoted(regFileName) + "' {");
+            sb.AppendLine("    if (-not (Test-Path -LiteralPath $AurumRegistryFile)) { throw 'Fichier .reg introuvable.' }");
+            sb.AppendLine("    $p = Start-Process -FilePath 'reg.exe' -ArgumentList ('import \"' + $AurumRegistryFile + '\" /reg:64') -Wait -PassThru -NoNewWindow");
+            sb.AppendLine("    if ($null -eq $p) { throw 'reg.exe non démarré.' }");
+            sb.AppendLine("    if ($p.ExitCode -ne 0) { throw ('reg.exe import a échoué: ' + $p.ExitCode) }");
+            sb.AppendLine("}");
+            sb.AppendLine();
+        }
+        else
+        {
+            sb.AppendLine("# Aucun fichier .reg compagnon à importer pour cette sélection.");
+            sb.AppendLine();
+        }
+
+        sb.Append(body);
+        if (!body.EndsWith(Environment.NewLine, StringComparison.Ordinal))
+            sb.AppendLine();
+        sb.AppendLine();
+        sb.AppendLine("if ($AurumFailures -gt 0) { throw ($AurumFailures.ToString() + ' opération(s) ont échoué.') }");
+        return sb.ToString();
+    }
+
+    private static void AppendPowerShellAction(StringBuilder sb, string tweakId, TweakOperation op, TweakEngineAction? action, bool applying)
+    {
+        var label = $"{tweakId}: {op.Type} {(applying ? "application" : "restauration")}";
+        switch (action)
+        {
+            case ServiceStartupTweakAction svc:
+                sb.AppendLine("Invoke-AurumStep '" + EscapePowerShellSingleQuoted(label) + "' {");
+                sb.AppendLine("    Set-AurumServiceStartup '" + EscapePowerShellSingleQuoted(svc.ServiceName) + "' '" + EscapePowerShellSingleQuoted(svc.StartupType) + "'");
+                sb.AppendLine("}");
+                break;
+
+            case ShellTweakAction shell when !string.IsNullOrWhiteSpace(shell.Arguments):
+                sb.AppendLine("Invoke-AurumProcess '" + EscapePowerShellSingleQuoted(label) + "' '" +
+                              EscapePowerShellSingleQuoted(shell.FileName) + "' '" +
+                              EscapePowerShellSingleQuoted(shell.Arguments) + "'");
+                break;
+
+            default:
+                var reason = applying
+                    ? "action moteur absente ou incomplète"
+                    : TweakOperationSummary.NoRevert;
+                sb.AppendLine("Invoke-AurumStep '" + EscapePowerShellSingleQuoted(label) + "' {");
+                sb.AppendLine("    throw '" + EscapePowerShellSingleQuoted(reason) + "'");
+                sb.AppendLine("}");
+                break;
+        }
+        sb.AppendLine();
+    }
+
+    private static void AppendPowerShellComment(StringBuilder sb, string text)
+    {
+        sb.AppendLine("# " + text.Replace("\r", " ").Replace("\n", " "));
+    }
+
+    private static void AppendRegistryAction(StringBuilder sb, RegistryTweakAction reg)
+    {
+        sb.AppendLine("[" + RegistryKeyPath(reg) + "]");
+        sb.AppendLine(RegistryValueLine(reg));
+        sb.AppendLine();
+    }
+
+    private static string RegistryKeyPath(RegistryTweakAction reg) =>
+        $"{RegistryHiveName(reg.Hive)}\\{reg.Key}";
+
+    private static string RegistryHiveName(string hive) => hive.ToUpperInvariant() switch
+    {
+        "HKLM" or "HKEY_LOCAL_MACHINE" => "HKEY_LOCAL_MACHINE",
+        "HKCU" or "HKEY_CURRENT_USER" => "HKEY_CURRENT_USER",
+        "HKCR" or "HKEY_CLASSES_ROOT" => "HKEY_CLASSES_ROOT",
+        "HKU" or "HKEY_USERS" => "HKEY_USERS",
+        "HKCC" or "HKEY_CURRENT_CONFIG" => "HKEY_CURRENT_CONFIG",
+        _ => hive
+    };
+
+    private static string RegistryValueLine(RegistryTweakAction reg)
+    {
+        var name = string.IsNullOrEmpty(reg.Name) ? "@" : "\"" + EscapeRegString(reg.Name) + "\"";
+        if (reg.DeletesValue) return $"{name}=-";
+        return $"{name}={RegistryLiteral(reg.Value!, reg.ValueType)}";
+    }
+
+    private static string RegistryLiteral(string value, RegistryValueType type) => type switch
+    {
+        RegistryValueType.DWord => "dword:" + unchecked((uint)RegistryValue.ParseDword(value)).ToString("x8", CultureInfo.InvariantCulture),
+        RegistryValueType.QWord => "hex(b):" + HexBytes(BitConverter.GetBytes(RegistryValue.ParseQword(value))),
+        RegistryValueType.String => "\"" + EscapeRegString(value) + "\"",
+        RegistryValueType.ExpandString => "hex(2):" + HexBytes(Encoding.Unicode.GetBytes(value + '\0')),
+        RegistryValueType.Binary => "hex:" + HexBytes(ParseHexBytes(value)),
+        RegistryValueType.MultiString => "hex(7):" + HexBytes(Encoding.Unicode.GetBytes(value.Replace("\\0", "\0") + "\0\0")),
+        RegistryValueType.None => "hex(0):",
+        _ => "\"" + EscapeRegString(value) + "\""
+    };
+
+    private static byte[] ParseHexBytes(string value)
+    {
+        var hex = value.Replace(" ", string.Empty).Replace(",", string.Empty).Replace("-", string.Empty);
+        return Convert.FromHexString(hex);
+    }
+
+    private static string HexBytes(byte[] bytes) =>
+        string.Join(",", bytes.Select(b => b.ToString("x2", CultureInfo.InvariantCulture)));
+
+    private static string EscapeRegString(string value) =>
+        value.Replace("\\", "\\\\").Replace("\"", "\\\"");
+
+    private static string EscapePowerShellSingleQuoted(string value) =>
+        value.Replace("'", "''");
+
+    private static string SanitizeFileStem(string baseName)
+    {
+        var stem = string.IsNullOrWhiteSpace(baseName) ? "aurum-tweaks-selection" : baseName.Trim();
+        foreach (var c in System.IO.Path.GetInvalidFileNameChars())
+            stem = stem.Replace(c, '-');
+        return string.IsNullOrWhiteSpace(stem) ? "aurum-tweaks-selection" : stem;
     }
 }
 

@@ -1,13 +1,17 @@
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Data;
 using AurumTweaks.Models;
 using AurumTweaks.Services;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Win32;
 
 namespace AurumTweaks.ViewModels;
 
@@ -284,6 +288,61 @@ public partial class TweaksViewModel : ObservableObject
 
     [RelayCommand]
     private void ClosePlan() => IsPlanVisible = false;
+
+    // Export the current selection as inspectable scripts: apply.ps1/apply.reg plus their revert twins. It uses the
+    // same licence partition as Apply/Preview and the pure TweakScriptExportRenderer, which itself consumes the same
+    // TweakOperationAction dispatch ExecuteAsync runs. The export writes files only; it never applies anything.
+    [RelayCommand]
+    private async Task ExportSelectionScriptsAsync()
+    {
+        var selected = Tweaks.Where(t => t.IsSelected).ToList();
+        if (selected.Count == 0)
+        {
+            StatusMessage = "Aucun tweak sélectionné à exporter.";
+            return;
+        }
+
+        var (allowed, locked) = TweakGate.Partition(_license.IsConfigured, _license.CurrentEdition, selected);
+        if (allowed.Count == 0)
+        {
+            StatusMessage = PremiumGateText.AllLocked(locked.Count);
+            return;
+        }
+
+        var dlg = new SaveFileDialog
+        {
+            Title = "Exporter les scripts de la sélection",
+            FileName = $"aurum-tweaks-selection-{DateTime.Now:yyyyMMdd-HHmm}.ps1",
+            Filter = "Script PowerShell (*.ps1)|*.ps1|Tous les fichiers (*.*)|*.*"
+        };
+        if (dlg.ShowDialog() != true) return;
+
+        var folder = Path.GetDirectoryName(dlg.FileName);
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            StatusMessage = "Export impossible : dossier invalide.";
+            return;
+        }
+
+        try
+        {
+            var stem = Path.GetFileNameWithoutExtension(dlg.FileName);
+            var bundle = TweakScriptExportRenderer.Build(allowed, stem);
+            await File.WriteAllTextAsync(Path.Combine(folder, bundle.ApplyPowerShellFileName), bundle.ApplyPowerShell, Encoding.UTF8);
+            await File.WriteAllTextAsync(Path.Combine(folder, bundle.RevertPowerShellFileName), bundle.RevertPowerShell, Encoding.UTF8);
+            await File.WriteAllTextAsync(Path.Combine(folder, bundle.ApplyRegistryFileName), bundle.ApplyRegistry, Encoding.Unicode);
+            await File.WriteAllTextAsync(Path.Combine(folder, bundle.RevertRegistryFileName), bundle.RevertRegistry, Encoding.Unicode);
+
+            StatusMessage = $"Scripts exportés : {bundle.TweakCount} tweak(s), {bundle.RegistryOperationCount} op. registre, {bundle.ScriptOperationCount} op. script/service. Relis les .ps1/.reg avant exécution.";
+            if (bundle.IrreversibleOperationCount > 0)
+                StatusMessage += $" {bundle.IrreversibleOperationCount} op. sans rétablissement automatique signalée(s).";
+            if (locked.Count > 0)
+                StatusMessage += PremiumGateText.LockedSuffix(locked.Count);
+        }
+        catch (IOException ex) { StatusMessage = $"Export impossible : {ex.Message}"; }
+        catch (UnauthorizedAccessException ex) { StatusMessage = $"Export impossible : {ex.Message}"; }
+        catch (FormatException ex) { StatusMessage = $"Export impossible : valeur catalogue invalide ({ex.Message})."; }
+    }
 
     [RelayCommand]
     private async Task ApplySelectedAsync()

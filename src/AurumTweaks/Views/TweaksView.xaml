@@ -191,6 +191,9 @@
                             Command="{Binding PreviewPlanCommand}" Margin="0,0,10,0"/>
                     <Button Content="Appliquer la sélection" Style="{StaticResource Button.Secondary}"
                             Command="{Binding ApplySelectedCommand}" Margin="0,0,10,0"/>
+                    <Button Content="Exporter scripts…" Style="{StaticResource Button.Secondary}"
+                            Command="{Binding ExportSelectionScriptsCommand}" Margin="0,0,10,0"
+                            ToolTip="Génère les fichiers application/restauration .ps1 + .reg depuis la même logique que le moteur. Rien n'est exécuté; exécution admin requise."/>
                     <Button Content="Tout restaurer" Style="{StaticResource Button.Danger}"
                             Command="{Binding RevertAllCommand}" Margin="0,0,10,0"/>
                     <Button Content="Rafraîchir l'état" Style="{StaticResource Button.Secondary}"
@@ -205,6 +208,9 @@
                                Style="{StaticResource Text.Secondary}"
                                Text="{Binding StatusMessage, Mode=OneWay}"/>
                 </StackPanel>
+
+                <TextBlock Margin="0,8,0,0" Style="{StaticResource Text.Muted}" TextWrapping="Wrap"
+                           Text="Export scripts : écrit des fichiers inspectables application/restauration (.ps1 + .reg), sans les exécuter. Les scripts forcent la vue Registre 64 bits comme l'app x64; les opérations sans inverse automatique sont signalées dans le script de restauration."/>
 
                 <!-- Post-apply verification: tweaks the engine reported applied but that the live machine does NOT
                      read back as active. Shown only when real (HasUnconfirmed) — an honest "couldn't confirm",
