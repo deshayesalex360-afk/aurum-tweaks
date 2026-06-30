@@ -434,8 +434,9 @@ public interface IStartupManagerService
 /// <summary>
 /// The "plan d'alimentation" manager — reads the real Windows power schemes (via <c>powercfg</c>) and switches
 /// the active one. Honest by construction: it reflects the live active scheme powercfg reports, every switch is a
-/// genuine <c>powercfg /setactive</c> the caller re-reads afterwards, and « Performances ultimes » is surfaced by
-/// the sanctioned duplicate-scheme step (it is hidden on many editions) — never a fabricated perf number.
+/// genuine <c>powercfg /setactive</c> or processor PPM write the caller re-reads afterwards, and « Performances
+/// ultimes » is surfaced by the sanctioned duplicate-scheme step (it is hidden on many editions) — never a fabricated
+/// perf number and never MSR/driver/firmware writes.
 /// </summary>
 public interface IPowerPlanService
 {
@@ -450,6 +451,9 @@ public interface IPowerPlanService
 
     /// <summary>Read the active plan's processor knobs « sur secteur » (min/max state, core-parking floor). Read-only; « — » when unreadable.</summary>
     Task<ProcessorPowerDetail> GetProcessorDetailAsync();
+
+    /// <summary>Set the active AC plan's processor PPM knobs via powercfg. Caller re-reads; invalid tuning returns false.</summary>
+    Task<bool> SetProcessorTuningAsync(ProcessorPowerTuning tuning);
 }
 
 /// <summary>

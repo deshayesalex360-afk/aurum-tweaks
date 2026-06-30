@@ -64,13 +64,13 @@
                 </StackPanel>
             </Border>
 
-            <!-- Active plan's processor detail — read-only, « sur secteur ». Hidden if powercfg couldn't read it. -->
+            <!-- Active plan's processor detail and editable AC PPM sliders. Hidden if powercfg couldn't read it. -->
             <Border Style="{StaticResource Card}" Margin="0,16,0,0"
                     Visibility="{Binding HasProcessorDetail, Converter={StaticResource BoolToVisibility}}">
                 <StackPanel>
                     <TextBlock Text="Détail du plan actif (processeur)" Style="{StaticResource Text.H3}"/>
                     <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
-                               Text="Ce que le plan actif demande au CPU, sur secteur. Lecture seule : cette carte montre l'état réel rapporté par powercfg, elle n'agit pas sur le plan (les réglages se font via les tweaks)."/>
+                               Text="Ce que le plan actif demande au CPU, sur secteur. Les curseurs ci-dessous écrivent uniquement les paramètres PPM documentés via powercfg ; aucun MSR, pilote, BIOS, NVRAM ou firmware n'est touché. Restauration : Aurum remet les trois valeurs lues au départ de cette page."/>
                     <Grid Margin="0,12,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" MinWidth="180"/>
@@ -90,6 +90,55 @@
                     </Grid>
                     <TextBlock Text="{Binding ProcessorDetail.Interpretation}" Style="{StaticResource Text.Secondary}"
                                Margin="0,12,0,0" TextWrapping="Wrap"/>
+
+                    <StackPanel Margin="0,16,0,0"
+                                Visibility="{Binding HasProcessorTuning, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Réglages processeur du plan actif (sur secteur)" Style="{StaticResource Text.H3}"/>
+                        <TextBlock Text="{Binding ProcessorTuningPreview}" Style="{StaticResource Text.Muted}"
+                                   Margin="0,4,0,0" TextWrapping="Wrap"/>
+
+                        <Grid Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="190"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="64"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="État CPU minimal" Style="{StaticResource Text.Muted}" VerticalAlignment="Center" Margin="0,0,12,8"/>
+                            <Slider Grid.Row="0" Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True"
+                                    Value="{Binding ProcessorMinPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,8"/>
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="{Binding ProcessorMinPercent, StringFormat={}{0} %}" Style="{StaticResource Text.Body}" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="État CPU maximal" Style="{StaticResource Text.Muted}" VerticalAlignment="Center" Margin="0,0,12,8"/>
+                            <Slider Grid.Row="1" Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True"
+                                    Value="{Binding ProcessorMaxPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,8"/>
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="{Binding ProcessorMaxPercent, StringFormat={}{0} %}" Style="{StaticResource Text.Body}" FontWeight="SemiBold" Margin="0,0,0,8"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Cœurs actifs minimum" Style="{StaticResource Text.Muted}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Slider Grid.Row="2" Grid.Column="1" Minimum="0" Maximum="100" TickFrequency="5" IsSnapToTickEnabled="True"
+                                    Value="{Binding CoreParkingPercent, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,12,0"/>
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding CoreParkingPercent, StringFormat={}{0} %}" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                        </Grid>
+
+                        <TextBlock Text="{Binding ProcessorRestorePreview}" Style="{StaticResource Text.Muted}"
+                                   FontSize="11" Margin="0,10,0,0" TextWrapping="Wrap"/>
+                        <TextBlock Style="{StaticResource Text.Muted}" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"
+                                   Text="Valeurs rapides : 100/100/100 garde le CPU et tous les cœurs réveillés, avec plus de chaleur au repos ; 5/100/100 garde le boost maximal mais laisse la fréquence baisser. Les laptops peuvent perdre en autonomie."/>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button Content="Appliquer les réglages CPU" Style="{StaticResource Button.Primary}"
+                                    IsEnabled="{Binding HasProcessorTuning}"
+                                    Command="{Binding ApplyProcessorTuningCommand}"/>
+                            <Button Content="Rétablir la lecture de départ" Style="{StaticResource Button.Secondary}" Margin="10,0,0,0"
+                                    IsEnabled="{Binding HasProcessorTuning}"
+                                    Command="{Binding RestoreProcessorTuningCommand}"/>
+                        </StackPanel>
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </StackPanel>

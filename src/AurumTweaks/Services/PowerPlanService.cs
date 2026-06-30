@@ -154,9 +154,8 @@ public static class PowerCfgProcessorQuery
 
 /// <summary>
 /// The active power plan's processor knobs, read live from <c>powercfg</c> « sur secteur » : minimum and maximum processor
-/// state, and the core-parking floor. Read-only — this reports what the active plan asks of the CPU; it never changes it
-/// (the tweak engine owns changes). Every value is the real powercfg index or « — » when it couldn't be read; nothing is
-/// synthesised, and no FPS is promised — only the factual frequency behaviour each setting produces.
+/// state, and the core-parking floor. Every value is the real powercfg index or « — » when it couldn't be read; nothing
+/// is synthesised, and no FPS is promised — only the factual frequency behaviour each setting produces.
 /// </summary>
 public sealed record ProcessorPowerDetail(int? MinThrottlePercent, int? MaxThrottlePercent, int? MinUnparkedCoresPercent, bool QueryOk)
 {
@@ -191,6 +190,65 @@ public sealed record ProcessorPowerDetail(int? MinThrottlePercent, int? MaxThrot
     private static string Pct(int? v) => v is { } n ? $"{n} %" : "—";
 }
 
+public sealed record ProcessorPowerTuning(int MinThrottlePercent, int MaxThrottlePercent, int MinUnparkedCoresPercent)
+{
+    public static ProcessorPowerTuning? FromDetail(ProcessorPowerDetail detail)
+    {
+        if (!detail.QueryOk ||
+            detail.MinThrottlePercent is not { } min ||
+            detail.MaxThrottlePercent is not { } max ||
+            detail.MinUnparkedCoresPercent is not { } cores)
+            return null;
+
+        var tuning = new ProcessorPowerTuning(min, max, cores);
+        return ProcessorPowerTuningPlan.IsValid(tuning) ? tuning : null;
+    }
+}
+
+public sealed record ProcessorPowerWrite(string Label, Guid Setting, int Value);
+
+/// <summary>
+/// Pure planner for the editable processor power-management sliders. It writes only documented <c>powercfg</c>
+/// PPM settings for the active AC plan: minimum/maximum processor state and the minimum unparked-core floor.
+/// No MSR, driver, firmware, NVRAM, or registry path is ever produced here; apply and revert use the same writes
+/// with different values, so the UI can restore the exact baseline it read.
+/// </summary>
+public static class ProcessorPowerTuningPlan
+{
+    public static readonly Guid SubProcessor = new("54533251-82be-4824-96c1-47b60b740d00");
+    public static readonly Guid ProcThrottleMax = new("bc5038f7-23e0-4960-96da-33abaf5935ec");
+    public static readonly Guid ProcThrottleMin = new("893dee8e-2bef-41e0-89c6-b55d0929964c");
+    public static readonly Guid ProcParkMinCores = new("0cc5b647-c1df-4637-891a-dec35c318583");
+
+    public const string ApplyCurrentSchemeArgs = "/setactive SCHEME_CURRENT";
+
+    public static bool IsValid(ProcessorPowerTuning tuning) =>
+        IsPercent(tuning.MinThrottlePercent) &&
+        IsPercent(tuning.MaxThrottlePercent) &&
+        IsPercent(tuning.MinUnparkedCoresPercent) &&
+        tuning.MinThrottlePercent <= tuning.MaxThrottlePercent;
+
+    public static IReadOnlyList<ProcessorPowerWrite> Build(ProcessorPowerTuning tuning) =>
+        !IsValid(tuning)
+            ? Array.Empty<ProcessorPowerWrite>()
+            : new[]
+            {
+                new ProcessorPowerWrite("État processeur minimal", ProcThrottleMin, tuning.MinThrottlePercent),
+                new ProcessorPowerWrite("État processeur maximal", ProcThrottleMax, tuning.MaxThrottlePercent),
+                new ProcessorPowerWrite("Cœurs actifs minimum", ProcParkMinCores, tuning.MinUnparkedCoresPercent),
+            };
+
+    public static string BuildSetAcArgs(ProcessorPowerWrite write) =>
+        $"/setacvalueindex SCHEME_CURRENT {SubProcessor} {write.Setting} {write.Value}";
+
+    public static string CoreParkingDraftDisplay(int minUnparkedPercent) =>
+        minUnparkedPercent >= 100
+            ? "parcage désactivé : 100 % des cœurs restent disponibles"
+            : $"Windows peut parquer jusqu'à {100 - minUnparkedPercent} % des cœurs au repos";
+
+    private static bool IsPercent(int value) => value is >= 0 and <= 100;
+}
+
 /// <summary>
 /// The "plan d'alimentation" manager — thin <c>powercfg</c> glue around the pure cores above. Honest by
 /// construction: it reports the live active scheme powercfg gives us, every switch is a real
@@ -199,29 +257,24 @@ public sealed record ProcessorPowerDetail(int? MinThrottlePercent, int? MaxThrot
 /// </summary>
 public sealed class PowerPlanService : IPowerPlanService
 {
-    // Well-known, locale-independent powercfg GUIDs: the processor subgroup and the three knobs we read « sur secteur ».
-    private static readonly Guid SubProcessor = new("54533251-82be-4824-96c1-47b60b740d00");
-    private static readonly Guid ProcThrottleMax = new("bc5038f7-23e0-4960-96da-33abaf5935ec");
-    private static readonly Guid ProcThrottleMin = new("893dee8e-2bef-41e0-89c6-b55d0929964c");
-    private static readonly Guid ProcParkMinCores = new("0cc5b647-c1df-4637-891a-dec35c318583");
-
     public Task<PowerPlanReport> GetReportAsync() => Task.Run(GetReport);
     public Task<bool> ActivateAsync(Guid scheme) => Task.Run(() => Activate(scheme));
     public Task<bool> EnableUltimateAsync() => Task.Run(EnableUltimate);
     public Task<ProcessorPowerDetail> GetProcessorDetailAsync() => Task.Run(GetProcessorDetail);
+    public Task<bool> SetProcessorTuningAsync(ProcessorPowerTuning tuning) => Task.Run(() => SetProcessorTuning(tuning));
 
     private static ProcessorPowerDetail GetProcessorDetail()
     {
-        int? min = QueryAcIndex(ProcThrottleMin);
-        int? max = QueryAcIndex(ProcThrottleMax);
-        int? cores = QueryAcIndex(ProcParkMinCores);
+        int? min = QueryAcIndex(ProcessorPowerTuningPlan.ProcThrottleMin);
+        int? max = QueryAcIndex(ProcessorPowerTuningPlan.ProcThrottleMax);
+        int? cores = QueryAcIndex(ProcessorPowerTuningPlan.ProcParkMinCores);
         // QueryOk if at least one knob read back — a total failure (no rights, source absent) hides the card honestly.
         return new ProcessorPowerDetail(min, max, cores, min.HasValue || max.HasValue || cores.HasValue);
     }
 
     private static int? QueryAcIndex(Guid setting)
     {
-        var (exit, stdout) = RunCapture("powercfg.exe", $"/q SCHEME_CURRENT {SubProcessor} {setting}");
+        var (exit, stdout) = RunCapture("powercfg.exe", $"/q SCHEME_CURRENT {ProcessorPowerTuningPlan.SubProcessor} {setting}");
         return exit == 0 ? PowerCfgProcessorQuery.ParseCurrentAcDc(stdout).Ac : null;
     }
 
@@ -259,6 +312,22 @@ public sealed class PowerPlanService : IPowerPlanService
         if (exit != 0) return false;
         // Activate the copy powercfg just created; if its GUID couldn't be read back, the base id is the fallback.
         return Activate(PowerSchemeParser.FirstGuid(stdout) ?? action.Scheme);
+    }
+
+    private static bool SetProcessorTuning(ProcessorPowerTuning tuning)
+    {
+        var writes = ProcessorPowerTuningPlan.Build(tuning);
+        if (writes.Count == 0) return false;
+
+        bool allOk = true;
+        foreach (var write in writes)
+        {
+            var (exit, _) = RunCapture("powercfg.exe", ProcessorPowerTuningPlan.BuildSetAcArgs(write));
+            allOk &= exit == 0;
+        }
+
+        var (applyExit, _) = RunCapture("powercfg.exe", ProcessorPowerTuningPlan.ApplyCurrentSchemeArgs);
+        return allOk && applyExit == 0;
     }
 
     // Unlike the tweak engine's fire-and-forget shell, we must CAPTURE powercfg's stdout to parse the scheme list.

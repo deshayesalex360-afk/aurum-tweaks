@@ -672,6 +672,15 @@ public sealed class FakePowerPlanService : IPowerPlanService
     public Task<ProcessorPowerDetail> GetProcessorDetailAsync() => Task.FromResult(Detail);
     public Task<bool> ActivateAsync(System.Guid scheme) => Task.FromResult(true);
     public Task<bool> EnableUltimateAsync() => Task.FromResult(true);
+    public Task<bool> SetProcessorTuningAsync(ProcessorPowerTuning tuning)
+    {
+        Detail = new ProcessorPowerDetail(
+            tuning.MinThrottlePercent,
+            tuning.MaxThrottlePercent,
+            tuning.MinUnparkedCoresPercent,
+            QueryOk: true);
+        return Task.FromResult(true);
+    }
 }
 
 /// <summary>In-memory timer-resolution probe — returns a configurable reading; no ntdll call is made.</summary>

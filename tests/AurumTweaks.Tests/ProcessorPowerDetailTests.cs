@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using AurumTweaks.Services;
 using Xunit;
 
@@ -148,4 +150,79 @@ public class ProcessorPowerDetailTests
         Assert.Contains("réduit sa fréquence", text);
         Assert.Contains("5 %", text);
     }
+}
+
+public class ProcessorPowerTuningPlanTests
+{
+    [Fact]
+    public void FromDetail_ReturnsTuningOnlyWhenEveryPercentIsReadableAndValid()
+    {
+        var tuning = ProcessorPowerTuning.FromDetail(new ProcessorPowerDetail(5, 100, 100, QueryOk: true));
+        Assert.NotNull(tuning);
+        Assert.Equal(5, tuning!.MinThrottlePercent);
+
+        Assert.Null(ProcessorPowerTuning.FromDetail(new ProcessorPowerDetail(5, null, 100, QueryOk: true)));
+        Assert.Null(ProcessorPowerTuning.FromDetail(new ProcessorPowerDetail(90, 80, 100, QueryOk: true)));
+        Assert.Null(ProcessorPowerTuning.FromDetail(new ProcessorPowerDetail(5, 100, 255, QueryOk: true)));
+        Assert.Null(ProcessorPowerTuning.FromDetail(new ProcessorPowerDetail(5, 100, 100, QueryOk: false)));
+    }
+
+    [Fact]
+    public void Build_EmitsExactAcPowerCfgWrites_ForProcessorPpmSettings()
+    {
+        var writes = ProcessorPowerTuningPlan.Build(new ProcessorPowerTuning(5, 100, 75));
+
+        Assert.Equal(3, writes.Count);
+        Assert.Contains(writes, w => w.Setting == ProcessorPowerTuningPlan.ProcThrottleMin && w.Value == 5);
+        Assert.Contains(writes, w => w.Setting == ProcessorPowerTuningPlan.ProcThrottleMax && w.Value == 100);
+        Assert.Contains(writes, w => w.Setting == ProcessorPowerTuningPlan.ProcParkMinCores && w.Value == 75);
+
+        var min = writes.Single(w => w.Setting == ProcessorPowerTuningPlan.ProcThrottleMin);
+        Assert.Equal($"/setacvalueindex SCHEME_CURRENT {ProcessorPowerTuningPlan.SubProcessor} {ProcessorPowerTuningPlan.ProcThrottleMin} 5",
+            ProcessorPowerTuningPlan.BuildSetAcArgs(min));
+        Assert.Equal("/setactive SCHEME_CURRENT", ProcessorPowerTuningPlan.ApplyCurrentSchemeArgs);
+    }
+
+    [Fact]
+    public void Build_InvalidValues_ReturnsNoWrites()
+    {
+        Assert.Empty(ProcessorPowerTuningPlan.Build(new ProcessorPowerTuning(-1, 100, 100)));
+        Assert.Empty(ProcessorPowerTuningPlan.Build(new ProcessorPowerTuning(5, 101, 100)));
+        Assert.Empty(ProcessorPowerTuningPlan.Build(new ProcessorPowerTuning(90, 80, 100)));
+    }
+
+    [Fact]
+    public void ApplyAndRevert_AreSameWritesWithDifferentValues()
+    {
+        var baseline = new ProcessorPowerTuning(5, 100, 10);
+        var target = new ProcessorPowerTuning(100, 100, 100);
+
+        var apply = ProcessorPowerTuningPlan.Build(target).ToDictionary(w => w.Setting, w => w.Value);
+        var revert = ProcessorPowerTuningPlan.Build(baseline).ToDictionary(w => w.Setting, w => w.Value);
+
+        Assert.Equal(100, apply[ProcessorPowerTuningPlan.ProcThrottleMin]);
+        Assert.Equal(5, revert[ProcessorPowerTuningPlan.ProcThrottleMin]);
+        Assert.Equal(100, apply[ProcessorPowerTuningPlan.ProcParkMinCores]);
+        Assert.Equal(10, revert[ProcessorPowerTuningPlan.ProcParkMinCores]);
+        Assert.Equal(apply.Keys.OrderBy(k => k), revert.Keys.OrderBy(k => k));
+    }
+
+    [Fact]
+    public void RenderedCommands_StayInPowerCfgOnly_NoMsrDriverOrRegistry()
+    {
+        var script = string.Join(" ", ProcessorPowerTuningPlan.Build(new ProcessorPowerTuning(5, 100, 100))
+            .Select(ProcessorPowerTuningPlan.BuildSetAcArgs));
+
+        Assert.Contains("/setacvalueindex", script);
+        Assert.DoesNotContain("msr", script, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("driver", script, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("reg", script, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("firmware", script, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(100, "parcage désactivé")]
+    [InlineData(75, "25 %")]
+    public void CoreParkingDraftDisplay_NamesTheRealEffect(int minUnparked, string expected)
+        => Assert.Contains(expected, ProcessorPowerTuningPlan.CoreParkingDraftDisplay(minUnparked));
 }
