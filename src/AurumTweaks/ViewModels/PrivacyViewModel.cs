@@ -9,9 +9,10 @@ namespace AurumTweaks.ViewModels;
 /// <summary>
 /// « Confidentialité » page — a curated front-end over Windows' consent/telemetry switches. Each toggle is a genuine,
 /// reversible registry write the page RE-READS, so a refused write shows the unchanged truth, never a fake « done ».
-/// An absent key is shown as the Windows default (collecte active), never invented. The honest framing: this REDUCES
-/// the data Windows collects — it does not make the OS private — and the telemetry floor on Famille/Pro is disclosed
-/// on the row itself. The services and scheduled tasks that carry telemetry are managed on their own pages.
+/// An absent key is shown as that setting's default/not-configured state, never invented as protected. The honest
+/// framing: this REDUCES the data Windows collects — it does not make the OS private — and the telemetry floor on
+/// Famille/Pro is disclosed on the row itself. AI policies and firewall rules disclose their limits; firewall blocking
+/// is opt-in, named, and removable, never a hosts/DNS hijack.
 /// </summary>
 public partial class PrivacyViewModel : ObservableObject
 {
@@ -20,6 +21,10 @@ public partial class PrivacyViewModel : ObservableObject
     public ObservableCollection<PrivacySettingState> Settings { get; } = new();
 
     [ObservableProperty] private string? _status;
+    [ObservableProperty] private string? _telemetryFirewallStatus;
+    [ObservableProperty] private string _telemetryFirewallNote = PrivacyFirewallPlan.UiLimit;
+    [ObservableProperty] private bool _canBlockTelemetryFirewall;
+    [ObservableProperty] private bool _canRemoveTelemetryFirewall;
     [ObservableProperty] private bool _isBusy;
 
     public PrivacyViewModel(IPrivacyService service)
@@ -33,10 +38,18 @@ public partial class PrivacyViewModel : ObservableObject
     {
         IsBusy = true;
         Status = "Lecture des réglages de confidentialité…";
-        var report = await _service.GetReportAsync();
+        var reportTask = _service.GetReportAsync();
+        var firewallTask = _service.GetTelemetryFirewallReportAsync();
+        await Task.WhenAll(reportTask, firewallTask);
+        var report = reportTask.Result;
+        var firewall = firewallTask.Result;
 
         Settings.Clear();
         foreach (var s in report.Settings) Settings.Add(s);
+
+        TelemetryFirewallStatus = firewall.StateDisplay;
+        CanBlockTelemetryFirewall = firewall.CanBlock;
+        CanRemoveTelemetryFirewall = firewall.CanRemove;
 
         Status = report.AllHardened
             ? $"Renforcé · {report.HardenedCount}/{report.Total} réglage(s) protégé(s)."
@@ -67,6 +80,26 @@ public partial class PrivacyViewModel : ObservableObject
 
     [RelayCommand]
     private Task Restore(PrivacySettingState? setting) => SetHardenedAsync(setting, harden: false);
+
+    [RelayCommand]
+    private async Task BlockTelemetryFirewallAsync()
+    {
+        IsBusy = true;
+        var ok = await _service.SetTelemetryFirewallBlockedAsync(block: true);
+        await RefreshAsync();
+        if (!ok)
+            Status = "Le pare-feu Windows a refusé la création d'au moins une règle Aurum ; l'état affiché a été relu.";
+    }
+
+    [RelayCommand]
+    private async Task RemoveTelemetryFirewallAsync()
+    {
+        IsBusy = true;
+        var ok = await _service.SetTelemetryFirewallBlockedAsync(block: false);
+        await RefreshAsync();
+        if (!ok)
+            Status = "Le pare-feu Windows a refusé le retrait d'au moins une règle Aurum ; l'état affiché a été relu.";
+    }
 
     private async Task SetHardenedAsync(PrivacySettingState? setting, bool harden)
     {

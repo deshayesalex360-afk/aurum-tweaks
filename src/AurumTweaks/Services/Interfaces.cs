@@ -655,20 +655,27 @@ public interface IMemoryManagementService
 
 /// <summary>
 /// « Confidentialité » — a curated front-end over Windows' consent/telemetry registry switches. Reads each setting's
-/// live value (absent = Windows default = collection active, never a fabricated « protégé ») and applies real,
-/// reversible writes the caller re-reads. Reduces collection; it does not make Windows private, and the consumer-SKU
-/// telemetry floor is disclosed per-setting. The DiagTrack service / telemetry tasks (the transport) live elsewhere.
+/// live value (absent = the setting's default/not-configured state, never a fabricated « protégé ») and applies real,
+/// reversible writes/deletes the caller re-reads. Reduces collection; it does not make Windows private, and the
+/// consumer-SKU telemetry floor / AI-policy caveats are disclosed per-setting. Optional telemetry blocking uses named,
+/// removable Windows Firewall rules only; no hosts/DNS hijack.
 /// </summary>
 public interface IPrivacyService
 {
     /// <summary>Read every curated privacy setting's live state. An unreadable/absent key reads as the Windows default, never a fake « protégé ».</summary>
     Task<PrivacyReport> GetReportAsync();
 
+    /// <summary>Read Aurum's exact named telemetry firewall rules. Missing rules are reported as missing, never invented.</summary>
+    Task<PrivacyFirewallReport> GetTelemetryFirewallReportAsync();
+
     /// <summary>Set one setting to its hardened (privacy) or default (Windows) value. Unknown id → false. Caller re-reads.</summary>
     Task<bool> SetHardenedAsync(string settingId, bool harden);
 
     /// <summary>Apply the « tout renforcer » (true) or « tout rétablir » (false) plan across every setting. Caller re-reads.</summary>
     Task<bool> ApplyAllAsync(bool harden);
+
+    /// <summary>Create or remove the exact Aurum-named Windows Firewall telemetry rules. Caller re-reads.</summary>
+    Task<bool> SetTelemetryFirewallBlockedAsync(bool block);
 }
 
 /// <summary>

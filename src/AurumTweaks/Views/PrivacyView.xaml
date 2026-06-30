@@ -6,7 +6,7 @@
         <StackPanel Margin="32,24,32,32">
             <TextBlock Text="Confidentialité" Style="{StaticResource Text.Display}"/>
             <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"
-                       Text="Windows collecte des données de diagnostic et personnalise l'interface (publicité, suggestions, historique d'activité, recherche web). Cette page regroupe les interrupteurs de consentement correspondants. Chaque réglage est lu en direct, entièrement réversible, et la valeur est relue après écriture. Honnêteté : ceci RÉDUIT la collecte, cela ne rend pas Windows « privé » ; les services et tâches planifiées qui transportent la télémétrie se gèrent sur leurs propres pages."/>
+                       Text="Windows collecte des données de diagnostic, personnalise l'interface et expose certaines fonctions IA (Recall, Copilot, Click to Do selon la build). Cette page regroupe des politiques lisibles et réversibles, puis relit l'état réel après écriture. Limite honnête : ceci RÉDUIT la collecte, cela ne rend pas Windows « privé » ; si Windows supprime des instantanés Recall, Aurum ne peut pas les recréer. Une mise à jour de fonctionnalité peut réactiver ou remplacer certains composants."/>
 
             <Border Style="{StaticResource Card}">
                 <StackPanel>
@@ -23,7 +23,37 @@
 
                     <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,12,0,0" TextWrapping="Wrap"/>
                     <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
-                               Text="Un réglage « Non configuré » utilise le défaut de Windows (collecte active) ; il n'est jamais inventé. Certains changements ne prennent effet qu'après une reconnexion. Aucun gain de FPS n'est promis ici — c'est une question de vie privée et de légèreté."/>
+                               Text="Un réglage « Non configuré » utilise le libellé par défaut propre à cette politique ; il n'est jamais inventé comme protégé. Certains changements ne prennent effet qu'après une reconnexion. Aucun gain de FPS n'est promis ici — c'est une question de vie privée et de légèreté."/>
+
+                    <Border Margin="0,14,0,0" Padding="14" CornerRadius="6"
+                            Background="{StaticResource Brush.Bg.Panel}"
+                            BorderBrush="{StaticResource Brush.Border.Default}"
+                            BorderThickness="1">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                <TextBlock Text="Pare-feu télémétrie" Style="{StaticResource Text.Body}"/>
+                                <TextBlock Text="{Binding TelemetryFirewallStatus}" Style="{StaticResource Text.Muted}"
+                                           Margin="0,3,0,0" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding TelemetryFirewallNote}" Style="{StaticResource Text.Muted}"
+                                           FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <Button Content="Bloquer via pare-feu" Style="{StaticResource Button.Tertiary}"
+                                        IsEnabled="{Binding CanBlockTelemetryFirewall}"
+                                        Command="{Binding BlockTelemetryFirewallCommand}"/>
+                                <Button Content="Retirer les règles Aurum" Style="{StaticResource Button.Tertiary}"
+                                        Margin="0,6,0,0"
+                                        IsEnabled="{Binding CanRemoveTelemetryFirewall}"
+                                        Command="{Binding RemoveTelemetryFirewallCommand}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
 
                     <ItemsControl ItemsSource="{Binding Settings}" Margin="0,12,0,0">
                         <ItemsControl.ItemTemplate>

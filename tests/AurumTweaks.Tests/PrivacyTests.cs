@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AurumTweaks.Models;
@@ -89,6 +90,25 @@ public class PrivacyCatalogTests
         Assert.False(string.IsNullOrWhiteSpace(t.Note));
         Assert.Contains("plafonné", t.Note!);
     }
+
+    [Fact]
+    public void AiPolicies_DiscloseLimits_AndRestoreByDeletingPolicyValues()
+    {
+        var ids = new[] { "recall-snapshots-device", "recall-snapshots-user", "copilot-windows-policy", "click-to-do-policy" };
+
+        foreach (var id in ids)
+        {
+            var s = PrivacyCatalog.Find(id);
+            Assert.NotNull(s);
+            Assert.Equal(PrivacyCategory.Ai, s!.Category);
+            Assert.True(s.RestoreDeletesValue);
+            Assert.Equal("Désactivé par politique", s.HardenedStateDisplay);
+            Assert.Contains("mise à jour de fonctionnalité", s.Note!);
+        }
+
+        Assert.Contains("pas les données déjà effacées", PrivacyCatalog.Find("recall-snapshots-device")!.Note!);
+        Assert.Contains("ne couvre pas tous les produits Copilot", PrivacyCatalog.Find("copilot-windows-policy")!.Note!);
+    }
 }
 
 public class PrivacySettingStateTests
@@ -97,6 +117,10 @@ public class PrivacySettingStateTests
         new("x", "L", "A", PrivacyCategory.Telemetry, "HKCU", "K", "V", RegistryValueType.DWord, "0", "1");
     private static readonly PrivacySetting WithNote =
         new("xn", "L", "A", PrivacyCategory.Telemetry, "HKCU", "K", "V", RegistryValueType.DWord, "0", "1", "caveat note");
+    private static readonly PrivacySetting DeleteRestore =
+        new("ai", "IA", "A", PrivacyCategory.Ai, "HKLM", PrivacyCatalog.WindowsAiPolicy, "DisableThing",
+            RegistryValueType.DWord, "1", "0", "caveat", "Désactivé par politique",
+            PrivacyCatalog.AiPolicyDefaultDisplay, RestoreDeletesValue: true);
 
     [Fact]
     public void Absent_ReadsAsDefault_NotFabricatedHardened()
@@ -144,6 +168,30 @@ public class PrivacySettingStateTests
         Assert.True(s.CanHarden);
         Assert.True(s.CanRestore);
         Assert.Contains("5", s.StateDisplay);
+    }
+
+    [Fact]
+    public void RestoreDeletesValue_TreatsOnlyAbsenceAsDefault()
+    {
+        var absent = new PrivacySettingState(DeleteRestore, null, false);
+        Assert.True(absent.IsDefault);
+        Assert.Equal("Non configuré · choix Windows/utilisateur non forcé", absent.StateDisplay);
+
+        var explicitZero = new PrivacySettingState(DeleteRestore, "0", true);
+        Assert.True(explicitZero.IsCustomValue);
+        Assert.True(explicitZero.CanRestore); // restore deletes the policy value, not a no-op write of 0
+
+        var hardened = new PrivacySettingState(DeleteRestore, "1", true);
+        Assert.True(hardened.IsHardened);
+        Assert.Equal("Désactivé par politique", hardened.StateDisplay);
+    }
+
+    [Fact]
+    public void DefaultDisplay_IsSourcedFromSetting()
+    {
+        var setting = Dword with { DefaultStateDisplay = "Défaut unique" };
+        Assert.Equal("Non configuré · Défaut unique", new PrivacySettingState(setting, null, false).StateDisplay);
+        Assert.Equal("Défaut unique", new PrivacySettingState(setting, "1", true).StateDisplay);
     }
 
     [Theory]
@@ -198,7 +246,91 @@ public class PrivacyPlanTests
     {
         var plan = PrivacyPlan.RestoreAll(PrivacyCatalog.Settings);
         Assert.Equal(PrivacyCatalog.Settings.Count, plan.Count);
-        Assert.All(plan, w => Assert.Equal(w.Setting.DefaultValue, w.Value));
+        Assert.All(plan, w =>
+        {
+            if (w.Setting.RestoreDeletesValue)
+            {
+                Assert.True(w.DeletesValue);
+                Assert.Null(w.Value);
+            }
+            else
+            {
+                Assert.False(w.DeletesValue);
+                Assert.Equal(w.Setting.DefaultValue, w.Value);
+            }
+        });
+    }
+}
+
+public class PrivacyFirewallPlanTests
+{
+    [Fact]
+    public void Rules_AreNamedUniqueAndProgramScoped()
+    {
+        Assert.Equal(PrivacyFirewallPlan.TelemetryRules.Count,
+                     PrivacyFirewallPlan.TelemetryRules.Select(r => r.Name).Distinct(StringComparer.OrdinalIgnoreCase).Count());
+        Assert.All(PrivacyFirewallPlan.TelemetryRules, r =>
+        {
+            Assert.StartsWith("AurumTweaks.Privacy.Telemetry.", r.Name, StringComparison.Ordinal);
+            Assert.StartsWith(@"%SystemRoot%\System32\", r.ProgramPath, StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith(".exe", r.ProgramPath, StringComparison.OrdinalIgnoreCase);
+        });
+    }
+
+    [Fact]
+    public void EnsureCommand_UsesNamedFirewallRules_NoHostsOrDnsHijack()
+    {
+        var command = PrivacyFirewallPlan.BuildEnsureCommand();
+
+        Assert.Contains("New-NetFirewallRule", command);
+        Assert.Contains("-Direction Outbound -Action Block", command);
+        Assert.Contains("-Program $program", command);
+        Assert.DoesNotContain("RemoteAddress", command);
+        Assert.DoesNotContain("Set-DnsClient", command);
+        Assert.DoesNotContain("drivers\\etc\\hosts", command.ToLowerInvariant());
+        Assert.All(PrivacyFirewallPlan.TelemetryRules, r => Assert.Contains(r.Name, command));
+    }
+
+    [Fact]
+    public void RemoveCommand_TargetsOnlyExactAurumRuleNames()
+    {
+        var command = PrivacyFirewallPlan.BuildRemoveCommand();
+
+        Assert.Contains("Remove-NetFirewallRule -Name $names", command);
+        Assert.All(PrivacyFirewallPlan.TelemetryRules, r => Assert.Contains(r.Name, command));
+        Assert.DoesNotContain("*", command);
+    }
+
+    [Fact]
+    public void ParseRuleEnabledLines_ReadsPowerShellOutput()
+    {
+        var first = PrivacyFirewallPlan.TelemetryRules[0].Name;
+        var second = PrivacyFirewallPlan.TelemetryRules[1].Name;
+
+        var parsed = PrivacyFirewallPlan.ParseRuleEnabledLines($"{first}|True\r\n{second}|False\r\njunk");
+
+        Assert.True(parsed[first]);
+        Assert.False(parsed[second]);
+    }
+
+    [Fact]
+    public void BuildReport_GatesBlockAndRemoveButtons()
+    {
+        var none = PrivacyFirewallPlan.BuildReport(new Dictionary<string, bool>(), queryOk: true);
+        Assert.True(none.CanBlock);
+        Assert.False(none.CanRemove);
+
+        var all = PrivacyFirewallPlan.BuildReport(
+            PrivacyFirewallPlan.TelemetryRules.ToDictionary(r => r.Name, _ => true),
+            queryOk: true);
+        Assert.True(all.AllBlocking);
+        Assert.False(all.CanBlock);
+        Assert.True(all.CanRemove);
+
+        var failed = PrivacyFirewallPlan.BuildReport(new Dictionary<string, bool>(), queryOk: false);
+        Assert.False(failed.CanBlock);
+        Assert.False(failed.CanRemove);
+        Assert.Contains("non lu", failed.StateDisplay);
     }
 }
 
@@ -285,6 +417,19 @@ public class PrivacyServiceTests
     }
 
     [Fact]
+    public async Task SetHardened_False_DeletesPolicyValue_WhenDefaultIsNotConfigured()
+    {
+        var (svc, reg) = New();
+        var recall = PrivacyCatalog.Find("recall-snapshots-device")!;
+        reg.Seed(recall.Hive, recall.Key, recall.ValueName, "1");
+
+        var ok = await svc.SetHardenedAsync("recall-snapshots-device", harden: false);
+
+        Assert.True(ok);
+        Assert.False(reg.Store.ContainsKey(PathOf(recall)));
+    }
+
+    [Fact]
     public async Task SetHardened_UnknownId_ReturnsFalse_AndWritesNothing()
     {
         var (svc, reg) = New();
@@ -310,11 +455,18 @@ public class PrivacyServiceTests
     public async Task ApplyAll_Restore_WritesEverySettingDefault()
     {
         var (svc, reg) = New();
+        foreach (var s in PrivacyCatalog.Settings.Where(s => s.RestoreDeletesValue))
+            reg.Seed(s.Hive, s.Key, s.ValueName, s.HardenedValue);
 
         var ok = await svc.ApplyAllAsync(harden: false);
 
         Assert.True(ok);
         foreach (var s in PrivacyCatalog.Settings)
-            Assert.Equal(s.DefaultValue, reg.Store[PathOf(s)]);
+        {
+            if (s.RestoreDeletesValue)
+                Assert.False(reg.Store.ContainsKey(PathOf(s)));
+            else
+                Assert.Equal(s.DefaultValue, reg.Store[PathOf(s)]);
+        }
     }
 }
