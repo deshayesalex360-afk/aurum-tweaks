@@ -480,11 +480,20 @@ public interface IScheduledTaskService
 /// </summary>
 public interface IAppxDebloatService
 {
-    /// <summary>Read the live state of every curated app (installed/absent, removable/protected), actionable bloat first.</summary>
+    /// <summary>Read the live state of every curated app plus extra non-curated AppX packages, actionable bloat first.</summary>
     Task<AppxReport> GetReportAsync();
+
+    /// <summary>Read winget availability, curated install options and upgrade candidates. The upgrade list is the preview for any later upgrade action.</summary>
+    Task<WingetReport> GetWingetReportAsync();
 
     /// <summary>Uninstall a package by its versioned full name. Returns false on failure (caller re-reads the real state).</summary>
     Task<bool> RemoveAsync(string packageFullName);
+
+    /// <summary>Install only curated winget package ids selected by the user. Unknown ids are ignored before execution.</summary>
+    Task<WingetActionReport> InstallWingetAsync(IReadOnlyList<string> packageIds);
+
+    /// <summary>Upgrade explicit winget ids from the listed preview, never a blind winget --all.</summary>
+    Task<WingetActionReport> UpgradeWingetAsync(IReadOnlyList<string> packageIds);
 }
 
 /// <summary>

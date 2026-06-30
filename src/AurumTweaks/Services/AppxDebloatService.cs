@@ -32,8 +32,15 @@ public sealed record AppxInfo(string Name, string Label, AppxCategory Category);
 
 /// <summary>A live package the system reports installed for the current user: the stable <see cref="Name"/>, the
 /// versioned <see cref="PackageFullName"/> that <c>Remove-AppxPackage -Package</c> wants, and whether Windows marks
-/// it non-removable (a protected app we must not offer a dead "uninstall" button for).</summary>
-public sealed record AppxLivePackage(string Name, string PackageFullName, bool NonRemovable);
+/// it non-removable (a protected app we must not offer a dead "uninstall" button for). Framework/resource flags let
+/// the hidden-AppX reveal avoid turning runtimes into tempting debloat targets.</summary>
+public sealed record AppxLivePackage(
+    string Name,
+    string PackageFullName,
+    bool NonRemovable,
+    bool IsFramework = false,
+    bool IsResourcePackage = false,
+    string SignatureKind = "");
 
 /// <summary>Whether a curated app is live on this machine — read from <c>Get-AppxPackage</c>, never guessed.</summary>
 public enum AppxLiveState
@@ -130,6 +137,27 @@ public static class AppxCatalog
     /// <summary>Everything here is recommended for removal except the one genuinely-useful Xbox/gaming bucket.</summary>
     public static bool RecommendedToRemove(AppxCategory category) =>
         category is not AppxCategory.Gaming;
+
+    private static readonly string[] CriticalNames =
+    {
+        "Microsoft.WindowsStore", "Microsoft.StorePurchaseApp", "Microsoft.DesktopAppInstaller",
+        "Microsoft.SecHealthUI", "Microsoft.Windows.ShellExperienceHost", "Microsoft.Windows.StartMenuExperienceHost",
+        "Microsoft.Windows.Photos", "Microsoft.WindowsCalculator", "Microsoft.WindowsNotepad", "Microsoft.Paint",
+        "Microsoft.WindowsTerminal", "Microsoft.AAD.BrokerPlugin", "Microsoft.AccountsControl", "Microsoft.LockApp",
+        "Windows.immersivecontrolpanel",
+    };
+
+    private static readonly string[] CriticalFragments =
+    {
+        "VCLibs", "UI.Xaml", "NET.Native", "ShellExperience", "StartMenu", "SecHealth", "WindowsStore", "DesktopAppInstaller",
+    };
+
+    public static bool IsSystemCritical(string packageName)
+    {
+        if (string.IsNullOrWhiteSpace(packageName)) return true;
+        return CriticalNames.Any(n => n.Equals(packageName, StringComparison.OrdinalIgnoreCase))
+            || CriticalFragments.Any(f => packageName.Contains(f, StringComparison.OrdinalIgnoreCase));
+    }
 }
 
 /// <summary>
@@ -160,7 +188,10 @@ public static class AppxStateParser
             if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(fullName)) continue;
 
             bool nonRemovable = fields.Count >= 3 && IsTrue(fields[2]);
-            map[name] = new AppxLivePackage(name, fullName, nonRemovable);
+            bool isFramework = fields.Count >= 4 && IsTrue(fields[3]);
+            bool isResource = fields.Count >= 5 && IsTrue(fields[4]);
+            string signatureKind = fields.Count >= 6 ? fields[5].Trim() : string.Empty;
+            map[name] = new AppxLivePackage(name, fullName, nonRemovable, isFramework, isResource, signatureKind);
         }
         return map;
     }
@@ -200,13 +231,30 @@ public sealed record AppxEntry(AppxInfo Info, AppxLiveState State, string Packag
     public bool ShowKeepBadge => IsInstalled && !RecommendedToRemove;
     public bool ShowAbsentBadge => IsAbsent;
     public bool ShowSystemBadge => IsInstalled && NonRemovable;
+    public bool ShowNonReversibleRemoval => ShowRemove;
+    public string RemovalReversibilityDisplay => ShowRemove
+        ? "Suppression non réversible dans Aurum · réinstallation via Microsoft Store"
+        : string.Empty;
 }
 
-/// <summary>The live preinstalled-app picture: every catalog app joined with its state, plus whether the query
-/// itself succeeded (so the page can tell "nothing installed" apart from "couldn't read the system").</summary>
-public sealed record AppxReport(IReadOnlyList<AppxEntry> Entries, bool QueryOk)
+/// <summary>A non-curated user AppX package surfaced read-only so the user can inspect hidden/non-Settings packages
+/// without Aurum offering an unreviewed removal.</summary>
+public sealed record HiddenAppxEntry(AppxLivePackage Package)
 {
+    public string Name => Package.Name;
+    public string PackageFullName => Package.PackageFullName;
+    public string StateDisplay => Package.NonRemovable ? "Protégée par Windows" : "Installée · lecture seule";
+    public string LimitDisplay => "Non cataloguée par Aurum : aucune suppression proposée ici.";
+}
+
+public sealed record AppxReport(
+    IReadOnlyList<AppxEntry> Entries,
+    bool QueryOk,
+    IReadOnlyList<HiddenAppxEntry>? HiddenPackages = null)
+{
+    public IReadOnlyList<HiddenAppxEntry> HiddenPackageRows => HiddenPackages ?? Array.Empty<HiddenAppxEntry>();
     public int InstalledCount => Entries.Count(e => e.IsInstalled);
+    public int HiddenCount => HiddenPackageRows.Count;
 
     /// <summary>Installed, removable, AND recommended-off — the actionable "bloat still present" count the status line shows.</summary>
     public int RemovableRecommendedCount =>
@@ -234,12 +282,196 @@ public static class AppxResolver
             .ToList();
     }
 
+    public static IReadOnlyList<HiddenAppxEntry> HiddenPackages(
+        IReadOnlyList<AppxInfo> catalog,
+        IReadOnlyDictionary<string, AppxLivePackage> liveByName)
+    {
+        var known = new HashSet<string>(catalog.Select(a => a.Name), StringComparer.OrdinalIgnoreCase);
+        return liveByName.Values
+            .Where(p => !known.Contains(p.Name))
+            .Where(p => !p.IsFramework && !p.IsResourcePackage)
+            .Where(p => !AppxCatalog.IsSystemCritical(p.Name))
+            .OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(p => new HiddenAppxEntry(p))
+            .ToList();
+    }
+
     // 0 = actionable bloat installed, 1 = useful app installed (à conserver), 2 = installed but protected, 3 = absent.
     private static int Rank(AppxEntry e)
     {
         if (!e.IsInstalled) return 3;
         if (!e.RecommendedToRemove) return 1;
         return e.NonRemovable ? 2 : 0;
+    }
+}
+
+/// <summary>A coarse winget bucket for the curated install suggestions shown on the AppX page.</summary>
+public enum WingetCategory { Essentials, Gaming, Creation }
+
+public sealed record WingetPackageInfo(string Id, string Label, WingetCategory Category);
+
+public static class WingetCatalog
+{
+    public static IReadOnlyList<WingetPackageInfo> Packages { get; } = new[]
+    {
+        new WingetPackageInfo("7zip.7zip", "7-Zip", WingetCategory.Essentials),
+        new WingetPackageInfo("Microsoft.PowerToys", "Microsoft PowerToys", WingetCategory.Essentials),
+        new WingetPackageInfo("VideoLAN.VLC", "VLC media player", WingetCategory.Essentials),
+        new WingetPackageInfo("Valve.Steam", "Steam", WingetCategory.Gaming),
+        new WingetPackageInfo("Discord.Discord", "Discord", WingetCategory.Gaming),
+        new WingetPackageInfo("OBSProject.OBSStudio", "OBS Studio", WingetCategory.Creation),
+    };
+
+    public static string CategoryLabel(WingetCategory category) => category switch
+    {
+        WingetCategory.Essentials => "Essentiels",
+        WingetCategory.Gaming => "Jeu",
+        WingetCategory.Creation => "Création",
+        _ => "Autre"
+    };
+}
+
+public sealed record WingetInstallOption(WingetPackageInfo Info, bool Installed)
+{
+    public string Id => Info.Id;
+    public string Label => Info.Label;
+    public string CategoryDisplay => WingetCatalog.CategoryLabel(Info.Category);
+    public bool CanInstall => !Installed;
+    public string StateDisplay => Installed ? "Déjà installée selon winget" : "Non détectée par winget";
+}
+
+public sealed record WingetUpgradeEntry(string Name, string Id, string InstalledVersion, string AvailableVersion, string Source)
+{
+    public string VersionDisplay => $"{InstalledVersion} → {AvailableVersion}";
+}
+
+public sealed record WingetReport(
+    bool WingetAvailable,
+    IReadOnlyList<WingetInstallOption> InstallOptions,
+    IReadOnlyList<WingetUpgradeEntry> UpgradeCandidates,
+    string Message)
+{
+    public int UpgradeCount => UpgradeCandidates.Count;
+    public bool HasUpgrades => UpgradeCandidates.Count > 0;
+}
+
+public sealed record WingetActionReport(int Requested, int Succeeded, IReadOnlyList<string> FailedIds)
+{
+    public bool AllSucceeded => Requested > 0 && Succeeded == Requested;
+    public string Summary => Requested == 0 ? "Aucune action winget demandée."
+        : AllSucceeded ? $"{Succeeded}/{Requested} action(s) winget terminée(s)."
+        : $"{Succeeded}/{Requested} action(s) winget terminée(s), échec : {string.Join(", ", FailedIds)}.";
+}
+
+public static class WingetListParser
+{
+    public static IReadOnlySet<string> ParseInstalledIds(string? stdout)
+    {
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var row in WingetTableParser.Parse(stdout, requireAvailable: false))
+            if (!string.IsNullOrWhiteSpace(row.Id)) ids.Add(row.Id);
+        return ids;
+    }
+}
+
+public static class WingetUpgradeParser
+{
+    public static IReadOnlyList<WingetUpgradeEntry> Parse(string? stdout) =>
+        WingetTableParser.Parse(stdout, requireAvailable: true)
+            .Select(r => new WingetUpgradeEntry(r.Name, r.Id, r.Version, r.Available, r.Source))
+            .ToList();
+}
+
+public static class WingetPlan
+{
+    public static IReadOnlyList<WingetInstallOption> BuildInstallOptions(
+        IReadOnlyList<WingetPackageInfo> catalog,
+        IReadOnlySet<string> installedIds) =>
+        catalog
+            .Select(p => new WingetInstallOption(p, installedIds.Contains(p.Id)))
+            .OrderBy(o => o.Installed)
+            .ThenBy(o => o.Info.Category)
+            .ThenBy(o => o.Label, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+    public static IReadOnlyList<string> AllowedInstallIds(
+        IReadOnlyList<WingetPackageInfo> catalog,
+        IEnumerable<string> requestedIds)
+    {
+        var known = new HashSet<string>(catalog.Select(p => p.Id), StringComparer.OrdinalIgnoreCase);
+        return DistinctKnown(requestedIds, known);
+    }
+
+    public static IReadOnlyList<string> ListedUpgradeIds(
+        IReadOnlyList<WingetUpgradeEntry> listedUpgrades,
+        IEnumerable<string> requestedIds)
+    {
+        var listed = new HashSet<string>(listedUpgrades.Select(p => p.Id), StringComparer.OrdinalIgnoreCase);
+        return DistinctKnown(requestedIds, listed);
+    }
+
+    private static IReadOnlyList<string> DistinctKnown(IEnumerable<string> requestedIds, HashSet<string> allowed)
+    {
+        var result = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var raw in requestedIds)
+        {
+            var id = raw?.Trim() ?? string.Empty;
+            if (id.Length == 0 || !allowed.Contains(id) || !seen.Add(id)) continue;
+            result.Add(id);
+        }
+        return result;
+    }
+}
+
+internal sealed record WingetTableRow(string Name, string Id, string Version, string Available, string Source);
+
+internal static class WingetTableParser
+{
+    public static IReadOnlyList<WingetTableRow> Parse(string? stdout, bool requireAvailable)
+    {
+        var rows = new List<WingetTableRow>();
+        if (string.IsNullOrWhiteSpace(stdout)) return rows;
+
+        var lines = stdout.Replace("\r\n", "\n").Split('\n');
+        int headerIndex = Array.FindIndex(lines, l => l.Contains(" Id ", StringComparison.Ordinal) && l.Contains("Version", StringComparison.Ordinal));
+        if (headerIndex < 0) return rows;
+
+        var header = lines[headerIndex];
+        int idStart = header.IndexOf("Id", StringComparison.Ordinal);
+        int versionStart = header.IndexOf("Version", StringComparison.Ordinal);
+        int availableStart = header.IndexOf("Available", StringComparison.Ordinal);
+        int sourceStart = header.IndexOf("Source", StringComparison.Ordinal);
+        if (idStart <= 0 || versionStart <= idStart) return rows;
+        if (requireAvailable && (availableStart <= versionStart || sourceStart <= availableStart)) return rows;
+        if (!requireAvailable && sourceStart <= versionStart) sourceStart = header.Length;
+
+        foreach (var raw in lines.Skip(headerIndex + 1))
+        {
+            var line = raw.TrimEnd();
+            if (line.Length == 0 || line.All(c => c == '-' || char.IsWhiteSpace(c))) continue;
+            if (line.Length <= idStart) continue;
+
+            string name = Slice(line, 0, idStart).Trim();
+            string id = Slice(line, idStart, versionStart).Trim();
+            string version = requireAvailable
+                ? Slice(line, versionStart, availableStart).Trim()
+                : Slice(line, versionStart, sourceStart).Trim();
+            string available = requireAvailable ? Slice(line, availableStart, sourceStart).Trim() : string.Empty;
+            string source = sourceStart < line.Length ? line[sourceStart..].Trim() : string.Empty;
+
+            if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(id)) continue;
+            if (requireAvailable && string.IsNullOrWhiteSpace(available)) continue;
+            rows.Add(new WingetTableRow(name, id, version, available, source));
+        }
+        return rows;
+    }
+
+    private static string Slice(string line, int start, int end)
+    {
+        if (start >= line.Length) return string.Empty;
+        int length = Math.Max(0, Math.Min(end, line.Length) - start);
+        return line.Substring(start, length);
     }
 }
 
@@ -253,18 +485,47 @@ public static class AppxResolver
 public sealed class AppxDebloatService : IAppxDebloatService
 {
     public Task<AppxReport> GetReportAsync() => Task.Run(GetReport);
+    public Task<WingetReport> GetWingetReportAsync() => Task.Run(GetWingetReport);
 
     public Task<bool> RemoveAsync(string packageFullName) => Task.Run(() => Remove(packageFullName));
+    public Task<WingetActionReport> InstallWingetAsync(IReadOnlyList<string> packageIds) => Task.Run(() => InstallWinget(packageIds));
+    public Task<WingetActionReport> UpgradeWingetAsync(IReadOnlyList<string> packageIds) => Task.Run(() => UpgradeWinget(packageIds));
 
     private static AppxReport GetReport()
     {
         var (_, stdout) = ProcessRunner.Capture("powershell.exe",
-            "-NoProfile -NonInteractive -Command \"Get-AppxPackage | Select-Object Name,PackageFullName,NonRemovable | ConvertTo-Csv -NoTypeInformation\"");
+            "-NoProfile -NonInteractive -Command \"Get-AppxPackage | Select-Object Name,PackageFullName,NonRemovable,IsFramework,IsResourcePackage,SignatureKind | ConvertTo-Csv -NoTypeInformation\"");
 
         var live = AppxStateParser.Parse(stdout);
         var entries = AppxResolver.Resolve(AppxCatalog.Apps, live);
+        var hidden = AppxResolver.HiddenPackages(AppxCatalog.Apps, live);
         // A healthy account lists dozens of packages; an empty map means the query failed (no module / error).
-        return new AppxReport(entries, QueryOk: live.Count > 0);
+        return new AppxReport(entries, QueryOk: live.Count > 0, hidden);
+    }
+
+    private static WingetReport GetWingetReport()
+    {
+        var (listExit, listOut) = ProcessRunner.Capture("winget.exe",
+            "list --accept-source-agreements --disable-interactivity", timeoutMs: 60_000);
+        if (listExit != 0)
+        {
+            return new WingetReport(
+                WingetAvailable: false,
+                InstallOptions: WingetPlan.BuildInstallOptions(WingetCatalog.Packages, new HashSet<string>(StringComparer.OrdinalIgnoreCase)),
+                UpgradeCandidates: Array.Empty<WingetUpgradeEntry>(),
+                Message: "winget indisponible ou refusé sur ce PC.");
+        }
+
+        var installed = WingetListParser.ParseInstalledIds(listOut);
+        var options = WingetPlan.BuildInstallOptions(WingetCatalog.Packages, installed);
+
+        var (upgradeExit, upgradeOut) = ProcessRunner.Capture("winget.exe",
+            "upgrade --accept-source-agreements --disable-interactivity", timeoutMs: 60_000);
+        var upgrades = upgradeExit == 0 ? WingetUpgradeParser.Parse(upgradeOut) : Array.Empty<WingetUpgradeEntry>();
+        string message = upgrades.Count > 0
+            ? $"{upgrades.Count} mise(s) à jour winget listée(s) avant action."
+            : "winget disponible · aucune mise à jour listée.";
+        return new WingetReport(true, options, upgrades, message);
     }
 
     private static bool Remove(string packageFullName)
@@ -277,4 +538,34 @@ public sealed class AppxDebloatService : IAppxDebloatService
             timeoutMs: 60_000);
         return exit == 0;
     }
+
+    private static WingetActionReport InstallWinget(IReadOnlyList<string> packageIds)
+    {
+        var ids = WingetPlan.AllowedInstallIds(WingetCatalog.Packages, packageIds);
+        return RunWingetPlan(ids, id =>
+            $"install --id \"{EscapeArg(id)}\" --exact --source winget --accept-package-agreements --accept-source-agreements --disable-interactivity");
+    }
+
+    private static WingetActionReport UpgradeWinget(IReadOnlyList<string> packageIds)
+    {
+        // The caller passes the IDs from the displayed upgrade list. Re-validating against that list happens in the VM,
+        // and each ID is upgraded explicitly instead of using "upgrade --all" so the action cannot outrun the preview.
+        var ids = packageIds.Where(id => !string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        return RunWingetPlan(ids, id =>
+            $"upgrade --id \"{EscapeArg(id)}\" --exact --source winget --accept-package-agreements --accept-source-agreements --disable-interactivity");
+    }
+
+    private static WingetActionReport RunWingetPlan(IReadOnlyList<string> ids, Func<string, string> args)
+    {
+        int ok = 0;
+        var failed = new List<string>();
+        foreach (var id in ids)
+        {
+            var (exit, _) = ProcessRunner.Capture("winget.exe", args(id), timeoutMs: 180_000);
+            if (exit == 0) ok++; else failed.Add(id);
+        }
+        return new WingetActionReport(ids.Count, ok, failed);
+    }
+
+    private static string EscapeArg(string id) => id.Replace("\"", string.Empty).Trim();
 }

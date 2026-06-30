@@ -6,7 +6,7 @@
         <StackPanel Margin="32,24,32,32">
             <TextBlock Text="Applications préinstallées" Style="{StaticResource Text.Display}"/>
             <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,4,0,20" TextWrapping="Wrap"
-                       Text="Windows installe des applications « bloatware » (jeux promotionnels, Actualités/Météo Bing, promos Office, lecteurs redondants…) que la plupart des gens n'ouvrent jamais. Cette liste ne contient que des apps grand public connues et sûres à retirer — jamais les composants système. La désinstallation se fait pour ta session utilisateur et est réversible uniquement en réinstallant depuis le Microsoft Store. C'est de l'espace disque, des processus en arrière-plan et de la confidentialité — aucun gain de FPS n'est promis."/>
+                       Text="AppX curatées, AppX non cataloguées et gestion winget. Aurum liste avant d'agir : les AppX inconnues restent en lecture seule, les suppressions AppX curatées ne sont pas réversibles dans Aurum (réinstallation Store), et winget n'exécute que les IDs visibles dans la sélection ou la liste des mises à jour."/>
 
             <Border Style="{StaticResource Card}">
                 <StackPanel>
@@ -17,7 +17,7 @@
                     </StackPanel>
                     <TextBlock Text="{Binding Status}" Style="{StaticResource Text.Muted}" Margin="0,12,0,0" TextWrapping="Wrap"/>
                     <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
-                               Text="L'état est lu en direct via Get-AppxPackage. Une app absente de ce PC est indiquée « absente » et n'est jamais inventée. Les apps Xbox utiles (Game Bar, Game Pass) sont signalées « à conserver ». Supprimer = Remove-AppxPackage (réinstallable depuis le Store)."/>
+                               Text="Get-AppxPackage fournit l'état réel. Une app absente n'est pas inventée, une app protégée n'a pas de bouton mort, et les apps Xbox utiles restent marquées « à conserver »."/>
 
                     <ItemsControl ItemsSource="{Binding Apps}" Margin="0,12,0,0">
                         <ItemsControl.ItemTemplate>
@@ -46,13 +46,17 @@
                                             </StackPanel>
                                             <TextBlock Style="{StaticResource Text.Muted}" Margin="0,2,0,0">
                                                 <Run Text="{Binding CategoryDisplay, Mode=OneWay}"/>
-                                                <Run Text=" ·"/>
+                                                <Run Text=" · "/>
                                                 <Run Text="{Binding StateDisplay, Mode=OneWay}"/>
                                             </TextBlock>
                                             <TextBlock Text="{Binding PackageName}" Style="{StaticResource Text.Muted}"
                                                        FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
                                             <TextBlock Text="{Binding Advice}" Style="{StaticResource Text.Muted}"
                                                        FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                            <TextBlock Text="{Binding RemovalReversibilityDisplay}" FontSize="11"
+                                                       TextWrapping="Wrap" Margin="0,4,0,0"
+                                                       Foreground="{StaticResource Brush.Gold.Bright}"
+                                                       Visibility="{Binding ShowNonReversibleRemoval, Converter={StaticResource BoolToVisibility}}"/>
                                         </StackPanel>
 
                                         <Border Grid.Column="1" Style="{StaticResource Badge.Extreme}" VerticalAlignment="Center"
@@ -72,6 +76,96 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0"
+                    Visibility="{Binding HasHiddenApps, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="AppX non cataloguées (lecture seule)" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
+                               Text="Paquets AppX utilisateur que Windows rapporte mais qu'Aurum n'a pas curatés. Les frameworks, ressources et composants critiques sont filtrés ; aucune suppression n'est proposée ici."/>
+                    <ItemsControl ItemsSource="{Binding HiddenApps}" Margin="0,12,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Card.Compact}" Margin="0,4">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding StateDisplay}" Style="{StaticResource Text.Muted}" Margin="0,2,0,0"/>
+                                        <TextBlock Text="{Binding PackageFullName}" Style="{StaticResource Text.Muted}"
+                                                   FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,2,0,0"/>
+                                        <TextBlock Text="{Binding LimitDisplay}" Style="{StaticResource Text.Muted}"
+                                                   FontSize="11" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <TextBlock Text="winget" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding WingetStatus}" Style="{StaticResource Text.Muted}" Margin="0,8,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Style="{StaticResource Text.Muted}" Margin="0,4,0,0" TextWrapping="Wrap" FontSize="11"
+                               Text="Les installations sont limitées au catalogue ci-dessous. Les mises à jour sont exécutées une par une depuis la liste visible, jamais via un « upgrade --all » aveugle."/>
+
+                    <StackPanel Margin="0,12,0,0" Visibility="{Binding HasWinget, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Installer depuis winget" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                        <ItemsControl ItemsSource="{Binding WingetInstallOptions}" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource Card.Compact}" Margin="0,4">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <CheckBox Grid.Column="0" Margin="0,2,10,0" VerticalAlignment="Top"
+                                                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                      IsEnabled="{Binding CanSelect}"/>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="{Binding Label}" Style="{StaticResource Text.Body}"/>
+                                                <TextBlock Text="{Binding Id}" Style="{StaticResource Text.Muted}" FontSize="11"/>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="2" Text="{Binding StateDisplay}" Style="{StaticResource Text.Muted}"
+                                                       Margin="16,0,0,0" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Content="Installer la sélection listée" Style="{StaticResource Button.Primary}" Margin="0,10,0,0"
+                                HorizontalAlignment="Left" Command="{Binding InstallSelectedWingetCommand}"/>
+                    </StackPanel>
+
+                    <StackPanel Margin="0,16,0,0" Visibility="{Binding HasWingetUpgrades, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Mises à jour listées" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
+                        <ItemsControl ItemsSource="{Binding WingetUpgrades}" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource Card.Compact}" Margin="0,4">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="{Binding Name}" Style="{StaticResource Text.Body}"/>
+                                                <TextBlock Text="{Binding Id}" Style="{StaticResource Text.Muted}" FontSize="11"/>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" Text="{Binding VersionDisplay}" Style="{StaticResource Text.Muted}"
+                                                       Margin="16,0,0,0" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <Button Content="Mettre à jour les paquets listés" Style="{StaticResource Button.Primary}" Margin="0,10,0,0"
+                                HorizontalAlignment="Left" Command="{Binding UpgradeListedWingetCommand}"/>
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </StackPanel>

@@ -82,8 +82,16 @@ public class AppxCatalogTests
         {
             Assert.DoesNotContain(CriticalNames, n => n.Equals(app.Name, StringComparison.OrdinalIgnoreCase));
             Assert.DoesNotContain(CriticalFragments, f => app.Name.Contains(f, StringComparison.OrdinalIgnoreCase));
+            Assert.False(AppxCatalog.IsSystemCritical(app.Name));
         }
     }
+
+    [Theory]
+    [InlineData("Microsoft.WindowsStore")]
+    [InlineData("Microsoft.VCLibs.140.00")]
+    [InlineData("")]
+    public void IsSystemCritical_FlagsProtectedNamesAndFragments(string packageName)
+        => Assert.True(AppxCatalog.IsSystemCritical(packageName));
 }
 
 /// <summary>
@@ -146,6 +154,17 @@ public class AppxStateParserTests
         var map = AppxStateParser.Parse("\"App.X\",\"App.X_1_x64__p\"");
         Assert.True(map.ContainsKey("App.X"));
         Assert.False(map["App.X"].NonRemovable);
+    }
+
+    [Fact]
+    public void Parse_ReadsFrameworkResourceAndSignatureKind_WhenPresent()
+    {
+        var map = AppxStateParser.Parse("\"App.Framework\",\"App.Framework_1_x64__p\",\"False\",\"True\",\"False\",\"Store\"");
+
+        var app = map["App.Framework"];
+        Assert.True(app.IsFramework);
+        Assert.False(app.IsResourcePackage);
+        Assert.Equal("Store", app.SignatureKind);
     }
 
     [Fact]
@@ -262,6 +281,38 @@ public class AppxResolverTests
     }
 
     [Fact]
+    public void Entry_RemovableRemoval_IsMarkedNonReversibleInAurum()
+    {
+        var promo = AppxResolver.Resolve(Catalog, Map((Promo.Name, "X.Promo_1_x64__p", false))).Single(e => e.Info == Promo);
+        var absent = AppxResolver.Resolve(Catalog, Map()).Single(e => e.Info == Promo);
+
+        Assert.True(promo.ShowNonReversibleRemoval);
+        Assert.Contains("non réversible", promo.RemovalReversibilityDisplay);
+        Assert.False(absent.ShowNonReversibleRemoval);
+        Assert.Equal(string.Empty, absent.RemovalReversibilityDisplay);
+    }
+
+    [Fact]
+    public void HiddenPackages_RevealsOnlyNonCatalogNonCriticalNonFrameworkPackages()
+    {
+        var live = new Dictionary<string, AppxLivePackage>(StringComparer.OrdinalIgnoreCase)
+        {
+            [Promo.Name] = new(Promo.Name, "X.Promo_1_x64__p", false),
+            ["Vendor.HiddenTool"] = new("Vendor.HiddenTool", "Vendor.HiddenTool_1_x64__p", false),
+            ["Microsoft.WindowsStore"] = new("Microsoft.WindowsStore", "Microsoft.WindowsStore_1_x64__p", false),
+            ["Microsoft.VCLibs.140.00"] = new("Microsoft.VCLibs.140.00", "Microsoft.VCLibs.140.00_1_x64__p", false),
+            ["Vendor.Framework"] = new("Vendor.Framework", "Vendor.Framework_1_x64__p", false, IsFramework: true),
+            ["Vendor.Resource"] = new("Vendor.Resource", "Vendor.Resource_1_x64__p", false, IsResourcePackage: true),
+        };
+
+        var hidden = AppxResolver.HiddenPackages(Catalog, live);
+
+        var only = Assert.Single(hidden);
+        Assert.Equal("Vendor.HiddenTool", only.Name);
+        Assert.Contains("aucune suppression", only.LimitDisplay);
+    }
+
+    [Fact]
     public void Report_RemovableRecommendedCount_ExcludesGamingAndProtected()
     {
         // Promo (actionable), Xbox (keep), News (recommended but protected) all installed — only Promo is "still bloat".
@@ -274,5 +325,114 @@ public class AppxResolverTests
 
         Assert.Equal(1, report.RemovableRecommendedCount);
         Assert.Equal(3, report.InstalledCount);
+    }
+
+    [Fact]
+    public void Report_HiddenCount_ComesFromHiddenRows()
+    {
+        var report = new AppxReport(Array.Empty<AppxEntry>(), QueryOk: true,
+            new[] { new HiddenAppxEntry(new AppxLivePackage("Vendor.Hidden", "Vendor.Hidden_1_x64__p", false)) });
+
+        Assert.Equal(1, report.HiddenCount);
+        Assert.Single(report.HiddenPackageRows);
+    }
+}
+
+public class WingetParserTests
+{
+    private static string Table(bool upgrades, params (string Name, string Id, string Version, string Available, string Source)[] rows)
+    {
+        var lines = new List<string>
+        {
+            upgrades
+                ? $"{"Name",-26}{"Id",-30}{"Version",-14}{"Available",-14}Source"
+                : $"{"Name",-26}{"Id",-30}{"Version",-14}Source",
+            new('-', 90)
+        };
+        foreach (var r in rows)
+        {
+            lines.Add(upgrades
+                ? $"{r.Name,-26}{r.Id,-30}{r.Version,-14}{r.Available,-14}{r.Source}"
+                : $"{r.Name,-26}{r.Id,-30}{r.Version,-14}{r.Source}");
+        }
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    [Fact]
+    public void ListParser_ReadsInstalledIds_FromWingetTable()
+    {
+        var text = Table(false,
+            ("7-Zip", "7zip.7zip", "24.09", "", "winget"),
+            ("Microsoft PowerToys", "Microsoft.PowerToys", "0.83.0", "", "winget"));
+
+        var ids = WingetListParser.ParseInstalledIds(text);
+
+        Assert.Contains("7zip.7zip", ids);
+        Assert.Contains("microsoft.powertoys", ids);
+    }
+
+    [Fact]
+    public void UpgradeParser_ReadsOnlyRowsWithAvailableVersion()
+    {
+        var text = Table(true,
+            ("Microsoft PowerToys", "Microsoft.PowerToys", "0.83.0", "0.84.0", "winget"),
+            ("OBS Studio", "OBSProject.OBSStudio", "30.0", "30.1", "winget"));
+
+        var upgrades = WingetUpgradeParser.Parse(text);
+
+        Assert.Equal(2, upgrades.Count);
+        Assert.Equal("Microsoft.PowerToys", upgrades[0].Id);
+        Assert.Equal("0.83.0 → 0.84.0", upgrades[0].VersionDisplay);
+    }
+
+    [Fact]
+    public void UpgradeParser_EmptyOrNoHeader_ReturnsEmpty()
+    {
+        Assert.Empty(WingetUpgradeParser.Parse(null));
+        Assert.Empty(WingetUpgradeParser.Parse("No installed package found matching input criteria."));
+    }
+}
+
+public class WingetPlanTests
+{
+    [Fact]
+    public void BuildInstallOptions_MarksInstalledAndSortsMissingFirst()
+    {
+        var installed = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "7zip.7zip" };
+        var options = WingetPlan.BuildInstallOptions(WingetCatalog.Packages, installed);
+
+        Assert.True(options.Single(o => o.Id == "7zip.7zip").Installed);
+        Assert.False(options.First().Installed);
+    }
+
+    [Fact]
+    public void AllowedInstallIds_FiltersUnknownAndDedupes()
+    {
+        var ids = WingetPlan.AllowedInstallIds(WingetCatalog.Packages,
+            new[] { "7zip.7zip", "unknown.Tool", "7ZIP.7ZIP", "  Microsoft.PowerToys  " });
+
+        Assert.Equal(new[] { "7zip.7zip", "Microsoft.PowerToys" }, ids);
+    }
+
+    [Fact]
+    public void ListedUpgradeIds_FiltersToDisplayedUpgradeList()
+    {
+        var listed = new[]
+        {
+            new WingetUpgradeEntry("PowerToys", "Microsoft.PowerToys", "0.83", "0.84", "winget")
+        };
+
+        var ids = WingetPlan.ListedUpgradeIds(listed, new[] { "Microsoft.PowerToys", "7zip.7zip" });
+
+        Assert.Equal(new[] { "Microsoft.PowerToys" }, ids);
+    }
+
+    [Fact]
+    public void WingetActionReport_SummaryReportsPartialFailure()
+    {
+        var report = new WingetActionReport(2, 1, new[] { "Bad.Package" });
+
+        Assert.False(report.AllSucceeded);
+        Assert.Contains("Bad.Package", report.Summary);
     }
 }
