@@ -221,6 +221,15 @@ public partial class SnapshotViewModel : ObservableObject
         ComparisonTargetLabel = "maintenant";
     }
 
+    // The build behind each side of the active comparison, for the report's cross-version caveat: the baseline's frozen
+    // capture version, and either the saved target's frozen version or — when the target is the live machine
+    // (_comparisonTarget null) — the build running NOW, which is exactly what CaptureLiveAsync stamped onto that live
+    // probe. Reuses the snapshots already held for re-compare, so it adds no parallel state; an unknown side stays empty,
+    // so the report omits the caveat rather than guessing a version gap.
+    private (string? baseline, string? target) ComparisonVersions()
+        => (_comparisonBaseline?.AppVersion,
+            _comparisonTarget?.AppVersion ?? BuildIdentity.CurrentVersion);
+
     // Save the on-screen comparison as a plain-text drift report (forum, support thread). The SHAPE is the pure
     // SnapshotReport.Render; this is only the file-dialog/write glue, with an honest no-op when nothing is shown.
     [RelayCommand]
@@ -237,7 +246,8 @@ public partial class SnapshotViewModel : ObservableObject
         if (dlg.ShowDialog() != true) return;
         try
         {
-            await File.WriteAllTextAsync(dlg.FileName, SnapshotReport.Render(comparison, ComparisonBaselineLabel, ComparisonTargetLabel, DateTime.UtcNow));
+            var (bv, tv) = ComparisonVersions();
+            await File.WriteAllTextAsync(dlg.FileName, SnapshotReport.Render(comparison, ComparisonBaselineLabel, ComparisonTargetLabel, DateTime.UtcNow, bv, tv));
             Status = "Comparaison exportée.";
         }
         catch (IOException ex) { Status = $"Export impossible : {ex.Message}"; }
@@ -253,7 +263,8 @@ public partial class SnapshotViewModel : ObservableObject
         if (comparison is null) { Status = "Aucune comparaison à copier."; return; }
         try
         {
-            Clipboard.SetText(SnapshotReport.Render(comparison, ComparisonBaselineLabel, ComparisonTargetLabel, DateTime.UtcNow));
+            var (bv, tv) = ComparisonVersions();
+            Clipboard.SetText(SnapshotReport.Render(comparison, ComparisonBaselineLabel, ComparisonTargetLabel, DateTime.UtcNow, bv, tv));
             Status = "Comparaison copiée. Colle-la où tu veux.";
         }
         catch { Status = "Copie impossible (presse-papiers occupé). Utilise « Exporter… » à la place."; }

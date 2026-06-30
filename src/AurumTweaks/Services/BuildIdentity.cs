@@ -35,6 +35,11 @@ public static class BuildIdentity
             // Only surface a path the user can actually run Get-FileHash against — a missing file gets no command.
             File.Exists(executablePath) ? executablePath : null);
 
+    /// <summary>The running build's version ONLY — the cheap half of <see cref="Probe()"/> (no executable hashing), so
+    /// a shared report header can stamp WHICH build produced the paste without re-reading the whole ~66 Mo binary. Same
+    /// resolver as the full probe, so the version can never disagree across surfaces. Never throws.</summary>
+    public static string CurrentVersion => ResolveVersion(CurrentExecutablePath);
+
     private static string ResolveVersion(string executablePath)
     {
         try

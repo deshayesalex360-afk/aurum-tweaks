@@ -59,6 +59,10 @@ public sealed class SnapshotService : ISnapshotService
         {
             Label = label?.Trim() ?? string.Empty,
             CapturedUtc = DateTime.UtcNow,
+            // The build taking THIS capture, frozen into the record so a snapshot that's later exported, carried past a
+            // reinstall, or shared still says which version produced it (BuildIdentity = the same source the Transparence
+            // disclosure uses, so the two surfaces can't disagree on the running version).
+            AppVersion = BuildIdentity.CurrentVersion,
             Entries = entries
         };
     }

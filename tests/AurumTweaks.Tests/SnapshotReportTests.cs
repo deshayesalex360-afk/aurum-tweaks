@@ -55,6 +55,32 @@ public class SnapshotReportTests
     }
 
     [Fact]
+    public void CrossVersionCaveat_AppearsForDifferingVersions_NamingBothInArrowOrder()
+    {
+        // Two sides captured by different builds → the report warns a difference may be a version change, not a real
+        // drift. The version arrow mirrors the « Référence : A → B » order.
+        var text = SnapshotReport.Render(
+            SnapshotDiff.Compare(Snap(E("t", TweakAppliedState.Applied)), Snap(E("t", TweakAppliedState.NotApplied))),
+            "avant", "après", FixedUtc, baselineVersion: "0.1.0", targetVersion: "0.2.0");
+
+        Assert.Contains("versions différentes (0.1.0 → 0.2.0)", text);
+        Assert.Contains("pas d'une dérive réelle", text);
+    }
+
+    [Fact]
+    public void NoCaveat_WhenVersionsMatch_OrAreUnknown()
+    {
+        var diff = SnapshotDiff.Compare(Snap(E("t", TweakAppliedState.Applied)), Snap(E("t", TweakAppliedState.NotApplied)));
+
+        // Same build on both sides → no version warning.
+        Assert.DoesNotContain("versions différentes",
+            SnapshotReport.Render(diff, "a", "b", FixedUtc, baselineVersion: "0.1.0", targetVersion: "0.1.0"));
+        // The default call (no versions supplied — e.g. older snapshots) stays exactly as before: no caveat.
+        Assert.DoesNotContain("versions différentes", Render(
+            Snap(E("t", TweakAppliedState.Applied)), Snap(E("t", TweakAppliedState.NotApplied))));
+    }
+
+    [Fact]
     public void RegressionRow_RendersName_BracketedId_AndTheTransition()
     {
         var text = Render(

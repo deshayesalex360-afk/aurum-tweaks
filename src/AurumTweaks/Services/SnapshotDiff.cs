@@ -117,17 +117,25 @@ public static class SnapshotDiff
 /// (forum, support thread). No I/O — the file write / clipboard copy is thin glue in the VM, so the report's SHAPE
 /// (header, the bucket sections, a section ONLY when it has rows) is unit-testable. Faithful by construction: it
 /// lays out exactly what <see cref="SnapshotDiff.Compare"/> classified, in the same order and with the same honest
-/// wording the page shows — it never re-derives or embellishes an outcome. Mirrors <see cref="JournalTextReport"/>.
+/// wording the page shows — it never re-derives or embellishes an outcome. When the two sides were captured by
+/// different Aurum builds it adds the <see cref="SnapshotVersionProvenance"/> caveat, so a cross-version difference
+/// isn't misread as a real drift. Mirrors <see cref="JournalTextReport"/>.
 /// </summary>
 public static class SnapshotReport
 {
-    public static string Render(SnapshotComparison comparison, string baselineLabel, string targetLabel, DateTime generatedUtc)
+    public static string Render(SnapshotComparison comparison, string baselineLabel, string targetLabel, DateTime generatedUtc,
+        string? baselineVersion = null, string? targetVersion = null)
     {
         var sb = new StringBuilder();
         sb.AppendLine("Aurum Tweaks — Comparaison d'instantané");
         sb.AppendLine($"Généré le {generatedUtc.ToLocalTime():dd/MM/yyyy HH:mm}");
         sb.AppendLine($"Référence : {baselineLabel} → {targetLabel}");
         sb.AppendLine(comparison.Summary);
+        // When the two sides come from different Aurum builds, warn that a difference may be a version change, not a real
+        // drift — emitted only when that can be said honestly (both versions known and differing), omitted otherwise.
+        var versionCaveat = SnapshotVersionProvenance.CrossVersionCaveat(baselineVersion, targetVersion);
+        if (versionCaveat is not null)
+            sb.AppendLine(versionCaveat);
         sb.AppendLine(new string('-', 48));
 
         // Same order as the page so the file reads like the panel. Each section is emitted ONLY when it has rows —
@@ -151,6 +159,29 @@ public static class SnapshotReport
 }
 
 /// <summary>
+/// The one honest reason a snapshot COMPARISON cares about build versions: when its two sides were captured by
+/// DIFFERENT Aurum builds, a difference between them can come from a change in what a tweak DOES across versions (a
+/// registry value the catalogue redefined, a tweak renamed), not a real drift on the machine. This pure helper returns
+/// that caveat line — and ONLY when it can be stated honestly: both versions must be KNOWN and actually differ. An
+/// unknown side (an older snapshot, or a foreign file that never recorded its version) yields no caveat, because a
+/// difference we can't see must not be claimed; identical versions yield none either. No I/O — a value in, a string or
+/// null out — so the rule is unit-testable. The single-state report instead stamps « Version à la capture » directly,
+/// because it has exactly one capture; only a two-capture diff needs this cross-version reconciliation.
+/// </summary>
+public static class SnapshotVersionProvenance
+{
+    public static string? CrossVersionCaveat(string? baselineVersion, string? targetVersion)
+    {
+        var b = baselineVersion?.Trim();
+        var t = targetVersion?.Trim();
+        // A side we don't know → no confident claim; same build → nothing to warn about. Only a known, real gap warns.
+        if (string.IsNullOrEmpty(b) || string.IsNullOrEmpty(t)) return null;
+        if (string.Equals(b, t, StringComparison.OrdinalIgnoreCase)) return null;
+        return $"Attention : instantanés de versions différentes ({b} → {t}) — un écart peut venir d'un changement entre ces versions d'Aurum, pas d'une dérive réelle de la machine.";
+    }
+}
+
+/// <summary>
 /// Pure renderer for a SINGLE <see cref="SystemSnapshot"/> as a plain-text state report — the human-readable
 /// counterpart to the machine-readable JSON export (<see cref="SnapshotPortability"/>). A user pastes this on a forum
 /// or support thread to show « voici l'état exact de mes tweaks » without sharing a JSON file nobody can read at a
@@ -161,9 +192,10 @@ public static class SnapshotReport
 /// <item>tweaks are grouped by the SAME tri-state the page detected — Appliqués / Non appliqués / Indéterminés — and an
 ///   <see cref="TweakAppliedState.Indeterminate"/> tweak is listed under its OWN heading, NEVER folded into
 ///   « appliqué » or « non appliqué »;</item>
-/// <item>the header carries the capture time because the state is a HISTORICAL probe (it may have drifted since), plus
-///   the per-state counts (<see cref="SystemSnapshot.StateSummaryLabel"/>) so the totals stay visible even where an
-///   empty section is omitted;</item>
+/// <item>the header carries the capture time AND the build version that took the capture — both frozen, because the
+///   state is a HISTORICAL probe (it may have drifted since, and the file may be reopened on another build) — plus the
+///   per-state counts (<see cref="SystemSnapshot.StateSummaryLabel"/>) so the totals stay visible even where an empty
+///   section is omitted (the version line is omitted, never guessed, for a record that didn't store one);</item>
 /// <item>the footer keeps the load-bearing caveat — « indéterminé » means the state could not be read back (a shell
 ///   tweak with no reliable re-read), NOT « désactivé ».</item>
 /// </list>
@@ -178,6 +210,10 @@ public static class SnapshotStateReport
         sb.AppendLine($"Généré le {generatedUtc.ToLocalTime():dd/MM/yyyy HH:mm}");
         sb.AppendLine($"Instantané : {snapshot.DisplayLabel}");
         sb.AppendLine($"Capturé le {snapshot.LocalTimestampLabel}");
+        // The build that CAPTURED this snapshot — frozen at capture, NOT the version reading it back, because a snapshot
+        // can be exported on one build and reopened on another. Omitted (never guessed) when the record didn't store it.
+        if (!string.IsNullOrWhiteSpace(snapshot.AppVersion))
+            sb.AppendLine($"Version à la capture : {snapshot.AppVersion.Trim()}");
         sb.AppendLine(snapshot.StateSummaryLabel);
         sb.AppendLine(new string('=', 48));
 
@@ -289,6 +325,9 @@ public static class SnapshotPortability
             // the file carries no real time — the zero date — so an import never sorts as, or displays, year 0001.
             CapturedUtc = parsed.CapturedUtc == default ? nowUtc : parsed.CapturedUtc,
             Label = parsed.Label?.Trim() ?? string.Empty,
+            // Preserve the version that CAPTURED the file — historical provenance from elsewhere, exactly like the capture
+            // time above; a file that never recorded it (older snapshot / foreign file) stays empty, rendered as omitted.
+            AppVersion = parsed.AppVersion?.Trim() ?? string.Empty,
             Entries = entries
         };
         return true;

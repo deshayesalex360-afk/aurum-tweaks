@@ -142,6 +142,38 @@ public class SnapshotPortabilityTests
     }
 
     [Fact]
+    public void TryImport_PreservesTheCaptureBuildVersion_AsHistoricalProvenance()
+    {
+        // The version that captured a snapshot is provenance from elsewhere — like the capture time, it must survive the
+        // file round-trip unchanged so a shared / imported state still says which build produced it.
+        var original = new SystemSnapshot { Label = "ref", AppVersion = "1.2.3", Entries = { E("t", TweakAppliedState.Applied) } };
+
+        var ok = SnapshotPortability.TryImport(SnapshotPortability.Serialize(original), FixedNow, out var imported, out _);
+
+        Assert.True(ok);
+        Assert.Equal("1.2.3", imported!.AppVersion);
+    }
+
+    [Fact]
+    public void TryImport_LeavesVersionEmpty_WhenTheFileDidNotRecordIt()
+    {
+        // An older snapshot or a foreign file that never carried a version imports with an empty one (rendered as
+        // omitted) — never a fabricated build string and never the version reading it back.
+        const string json = """
+            {
+              "label": "sans version",
+              "capturedUtc": "2026-01-01T00:00:00Z",
+              "entries": [ { "tweakId": "t", "tweakName": "T", "state": "Applied" } ]
+            }
+            """;
+
+        var ok = SnapshotPortability.TryImport(json, FixedNow, out var imported, out _);
+
+        Assert.True(ok);
+        Assert.Equal(string.Empty, imported!.AppVersion);
+    }
+
+    [Fact]
     public void TryImport_SubstitutesNow_WhenTheFileCarriesTheZeroDate()
     {
         // A file with no real capture time (the zero date) must not import as year 0001 — it takes the import time so

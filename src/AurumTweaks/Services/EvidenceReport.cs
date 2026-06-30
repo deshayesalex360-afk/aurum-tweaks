@@ -71,11 +71,15 @@ public static class EvidenceReport
     // deterministic regardless of the machine's locale (same precedent as BenchmarkTextReport).
     private static readonly CultureInfo Fr = CultureInfo.GetCultureInfo("fr-FR");
 
-    public static string Render(EvidenceInputs inputs, DateTime generatedUtc, HardwareInfo? hardware = null)
+    public static string Render(EvidenceInputs inputs, DateTime generatedUtc, HardwareInfo? hardware = null, string? appVersion = null)
     {
         var sb = new StringBuilder();
         sb.AppendLine("Aurum Tweaks — Preuve avant / après");
         sb.AppendLine($"Généré le {generatedUtc.ToLocalTime():dd/MM/yyyy HH:mm}");
+        // Which build produced this proof — a « +12 % de 1% low » paste is only credible if it says on what version.
+        // Same BuildIdentity source as the system report, so a shared proof and a shared config can't disagree.
+        if (!string.IsNullOrWhiteSpace(appVersion))
+            sb.AppendLine($"Version : {appVersion.Trim()}");
         sb.AppendLine(new string('=', Width));
 
         AppendMachine(sb, hardware);

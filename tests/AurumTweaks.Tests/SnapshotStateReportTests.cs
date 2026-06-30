@@ -47,6 +47,19 @@ public class SnapshotStateReportTests
         Assert.Contains("2 appliqué(s) · 1 non · 0 indéterminé(s)", text);
     }
 
+    [Fact]
+    public void Header_StampsCaptureVersion_OnlyWhenTheSnapshotRecordedIt()
+    {
+        // A snapshot captured by a known build shows « Version à la capture » — the honest provenance for a shared or
+        // imported state. A record with no version (older snapshot / foreign file) omits the line rather than guessing
+        // a build (e.g. the one reading it back, which would be wrong for an imported snapshot).
+        var withVersion = Snap(E("a", TweakAppliedState.Applied));
+        withVersion.AppVersion = "9.9.9-test";
+        Assert.Contains("Version à la capture : 9.9.9-test", Render(withVersion));
+
+        Assert.DoesNotContain("Version à la capture", Render(Snap(E("a", TweakAppliedState.Applied))));
+    }
+
     // --- Empty ---
 
     [Fact]

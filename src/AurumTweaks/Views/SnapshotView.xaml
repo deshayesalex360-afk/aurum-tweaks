@@ -203,7 +203,7 @@
                                 <StackPanel Grid.Column="0" VerticalAlignment="Center">
                                     <TextBlock Text="{Binding DisplayLabel}" Style="{StaticResource Text.Body}" FontWeight="SemiBold"/>
                                     <TextBlock Style="{StaticResource Text.Muted}" Margin="0,2,0,0">
-                                        <Run Text="{Binding LocalTimestampLabel, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding StateSummaryLabel, Mode=OneWay}"/>
+                                        <Run Text="{Binding LocalTimestampLabel, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding StateSummaryLabel, Mode=OneWay}"/><Run Text="{Binding CaptureVersionSuffix, Mode=OneWay}"/>
                                     </TextBlock>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">

@@ -52,6 +52,17 @@ public class SystemReportTests
                                activePowerPlan, processorDetail, timerResolution, pendingReboot, driveHealth,
                                scorecard, scoreProgress);
 
+    // The build that produced the paste is what a bug report / forum reply asks for first. It rides in the header only
+    // when supplied (production passes BuildIdentity.CurrentVersion); a null keeps the older shape intact.
+    [Fact]
+    public void Header_StampsAppVersion_OnlyWhenProvided()
+    {
+        var with = SystemReport.Render(Hw(), Array.Empty<string>(), Array.Empty<JournalEntry>(),
+                                       true, false, DateTime.UtcNow, appVersion: "9.9.9-test");
+        Assert.Contains("Version : 9.9.9-test", with);
+        Assert.DoesNotContain("Version :", Render(Hw()));
+    }
+
     // Build a scorecard through the REAL pure core (never a hand-pinned record), so the section tests exercise the
     // same maths the dashboard ring uses — and the « hors score » / 100-stays-reachable honesty is the genuine one.
     private static OptimizationScorecard Score(params (TweakCategory Cat, int Weight, TweakAppliedState State)[] inputs)

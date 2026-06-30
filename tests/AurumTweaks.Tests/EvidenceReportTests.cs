@@ -33,6 +33,16 @@ public class EvidenceReportTests
     private static BenchmarkComparison Perf(double beforeFps, double afterFps)
         => BenchmarkComparer.Compare(Run(beforeFps, beforeFps * 0.8), Run(afterFps, afterFps * 0.8));
 
+    // Which build produced a « +12 % de 1% low » proof — supplied in production from the same BuildIdentity source as
+    // the system report, so a shared proof and a shared config can't disagree on the version; omitted when null.
+    [Fact]
+    public void Header_StampsAppVersion_OnlyWhenProvided()
+    {
+        var with = EvidenceReport.Render(EvidenceInputs.Empty, Generated, hardware: null, appVersion: "9.9.9-test");
+        Assert.Contains("Version : 9.9.9-test", with);
+        Assert.DoesNotContain("Version :", EvidenceReport.Render(EvidenceInputs.Empty, Generated));
+    }
+
     private static SnapshotChange Improved(string name)
         => new(name, name, TweakAppliedState.NotApplied, TweakAppliedState.Applied);
 

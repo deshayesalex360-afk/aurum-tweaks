@@ -31,6 +31,13 @@ public sealed class SystemSnapshot
     [JsonPropertyName("label")]
     public string Label { get; set; } = string.Empty;
 
+    /// <summary>The Aurum build that CAPTURED this snapshot (e.g. "0.1.0"), frozen at capture and never overwritten on
+    /// read: a snapshot is a HISTORICAL probe, so when it's exported, survives a reinstall, or is shared, the honest
+    /// question is « quelle version l'a pris », not which build reopens it. Empty for a snapshot captured before this
+    /// was recorded, or a foreign file that omits it — rendered as omitted, never guessed.</summary>
+    [JsonPropertyName("appVersion")]
+    public string AppVersion { get; set; } = string.Empty;
+
     [JsonPropertyName("entries")]
     public List<SnapshotEntry> Entries { get; set; } = new();
 
@@ -42,6 +49,13 @@ public sealed class SystemSnapshot
     [JsonIgnore] public string DisplayLabel => string.IsNullOrWhiteSpace(Label) ? LocalTimestampLabel : Label;
     [JsonIgnore] public string StateSummaryLabel =>
         $"{AppliedCount} appliqué(s) · {NotAppliedCount} non · {IndeterminateCount} indéterminé(s)";
+
+    /// <summary>A compact provenance badge for the list row — « · v0.1.0 » when the capturing build is known, else
+    /// empty (no orphan separator) so an older / foreign snapshot shows nothing rather than a guessed version. Reuses
+    /// the same frozen <see cref="AppVersion"/> the exported state report stamps, so the in-app badge and the pasted
+    /// report can't disagree on which build took the capture.</summary>
+    [JsonIgnore] public string CaptureVersionSuffix =>
+        string.IsNullOrWhiteSpace(AppVersion) ? string.Empty : $" · v{AppVersion.Trim()}";
 }
 
 /// <summary>

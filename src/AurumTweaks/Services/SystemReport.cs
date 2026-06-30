@@ -42,11 +42,16 @@ public static class SystemReport
         PendingRebootStatus? pendingReboot = null,
         DriveHealthReport? driveHealth = null,
         OptimizationScorecard? scorecard = null,
-        ScoreProgress? scoreProgress = null)
+        ScoreProgress? scoreProgress = null,
+        string? appVersion = null)
     {
         var sb = new StringBuilder();
         sb.AppendLine("Aurum Tweaks — Rapport système");
         sb.AppendLine($"Généré le {generatedUtc.ToLocalTime():dd/MM/yyyy HH:mm}");
+        // The build that produced this paste — the first thing a bug triage or forum reply asks (« sur quelle
+        // version ? »). Same resolver as the Transparence disclosure (BuildIdentity), so the two can't disagree.
+        if (!string.IsNullOrWhiteSpace(appVersion))
+            sb.AppendLine($"Version : {appVersion.Trim()}");
         sb.AppendLine(new string('=', 48));
 
         sb.AppendLine();

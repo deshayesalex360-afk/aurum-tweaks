@@ -614,7 +614,7 @@ public partial class DashboardViewModel : ObservableObject
             _settings.Current.StrictCompetitiveAntiCheat,
             DateTime.UtcNow,
             powerReport.ActiveName, processorDetail, timer, pendingReboot, driveHealth,
-            scorecard, scoreProgress);
+            scorecard, scoreProgress, BuildIdentity.CurrentVersion);
         return (text, appliedNames.Count);
     }
 
@@ -644,7 +644,7 @@ public partial class DashboardViewModel : ObservableObject
         if (dlg.ShowDialog() != true) { EvidenceStatus = string.Empty; return; }
         try
         {
-            await File.WriteAllTextAsync(dlg.FileName, EvidenceReport.Render(inputs, DateTime.UtcNow, HardwareInfo));
+            await File.WriteAllTextAsync(dlg.FileName, EvidenceReport.Render(inputs, DateTime.UtcNow, HardwareInfo, BuildIdentity.CurrentVersion));
             EvidenceStatus = "Preuve exportée.";
         }
         catch (IOException ex) { EvidenceStatus = $"Export impossible : {ex.Message}"; }
@@ -660,7 +660,7 @@ public partial class DashboardViewModel : ObservableObject
         if (!inputs.HasAnyEvidence) { EvidenceStatus = NoEvidenceGuidance; return; }
         try
         {
-            Clipboard.SetText(EvidenceReport.Render(inputs, DateTime.UtcNow, HardwareInfo));
+            Clipboard.SetText(EvidenceReport.Render(inputs, DateTime.UtcNow, HardwareInfo, BuildIdentity.CurrentVersion));
             EvidenceStatus = "Preuve copiée. Colle-la où tu veux (forum, Discord, thread OC).";
         }
         catch { EvidenceStatus = "Copie impossible (presse-papiers occupé). Utilise « Exporter » à la place."; }
