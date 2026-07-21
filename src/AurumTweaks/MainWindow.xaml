@@ -101,9 +101,10 @@
                            FontSize="11"
                            Foreground="{StaticResource Brush.Text.Muted}"/>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" WindowChrome.IsHitTestVisibleInChrome="True">
-                    <Button Style="{StaticResource WindowControlButton}" Click="MinBtn_Click" Content="&#xE921;"/>
-                    <Button Style="{StaticResource WindowControlButton}" Click="MaxBtn_Click" Content="&#xE922;"/>
-                    <Button Style="{StaticResource WindowControlButton.Close}" Click="CloseBtn_Click" Content="&#xE8BB;"/>
+                    <!-- Icon-only chrome buttons: the glyph carries no text, so a screen reader needs an explicit French name (WCAG 4.1.2). -->
+                    <Button Style="{StaticResource WindowControlButton}" Click="MinBtn_Click" Content="&#xE921;" AutomationProperties.Name="Réduire la fenêtre"/>
+                    <Button Style="{StaticResource WindowControlButton}" Click="MaxBtn_Click" Content="&#xE922;" AutomationProperties.Name="Agrandir ou restaurer la fenêtre"/>
+                    <Button Style="{StaticResource WindowControlButton.Close}" Click="CloseBtn_Click" Content="&#xE8BB;" AutomationProperties.Name="Fermer la fenêtre"/>
                 </StackPanel>
             </Grid>
 
@@ -111,7 +112,8 @@
             <Border Grid.Column="0" Grid.Row="1"
                     Background="{StaticResource Brush.Sidebar.Gradient}"
                     BorderBrush="{StaticResource Brush.Border.Subtle}"
-                    BorderThickness="0,0,1,0">
+                    BorderThickness="0,0,1,0"
+                    AutomationProperties.Name="Navigation principale">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -166,7 +168,11 @@
 
                     <!-- Nav region: universal-search launcher pinned on top, scrollable nav list below.
                          The list has 37 destinations — without the ScrollViewer the tail items overflow a
-                         short window and become unreachable. -->
+                         short window and become unreachable.
+                         Each nav button's icon is a decorative Private-Use-Area glyph; WPF has no XAML attach to mark
+                         it non-control, so without help a screen reader concatenates the glyph as noise before the
+                         label. Every RadioButton therefore sets an explicit AutomationProperties.Name (its French
+                         label) — an explicit name makes UIA use exactly that and skip the child glyph entirely. -->
                     <Grid Grid.Row="1">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -179,7 +185,8 @@
                                 BorderThickness="1" CornerRadius="6"
                                 Cursor="Hand"
                                 MouseLeftButtonUp="OpenPalette_Click"
-                                ToolTip="Recherche universelle — pages, actions et tweaks (Ctrl K)">
+                                ToolTip="Recherche universelle — pages, actions et tweaks (Ctrl K)"
+                                AutomationProperties.Name="{Binding ToolTip, RelativeSource={RelativeSource Self}}">
                             <Grid Margin="9,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
@@ -201,55 +208,55 @@
 
                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,2,0">
                     <StackPanel>
-                        <RadioButton x:Name="NavDashboard" Style="{StaticResource NavButton}" IsChecked="True" GroupName="Nav" Tag="Dashboard" Click="Nav_Click">
+                        <RadioButton x:Name="NavDashboard" Style="{StaticResource NavButton}" IsChecked="True" GroupName="Nav" Tag="Dashboard" Click="Nav_Click" AutomationProperties.Name="Tableau de bord">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE80F;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Tableau de bord"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Tweaks" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Tweaks" Click="Nav_Click" AutomationProperties.Name="Tweaks Windows">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE9F5;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Tweaks Windows"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Startup" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Startup" Click="Nav_Click" AutomationProperties.Name="Démarrage">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE7E8;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Démarrage"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Power" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Power" Click="Nav_Click" AutomationProperties.Name="Alimentation">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE945;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Alimentation"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="ScheduledTasks" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="ScheduledTasks" Click="Nav_Click" AutomationProperties.Name="Tâches planifiées">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE916;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Tâches planifiées"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Appx" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Appx" Click="Nav_Click" AutomationProperties.Name="Applications préinstallées">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE71D;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Applications préinstallées"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="DiskCleanup" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="DiskCleanup" Click="Nav_Click" AutomationProperties.Name="Nettoyage disque">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE74D;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Nettoyage disque"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="DriveHealth" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="DriveHealth" Click="Nav_Click" AutomationProperties.Name="Santé des disques">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xEDA2;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Santé des disques"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Bios" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Bios" Click="Nav_Click" AutomationProperties.Name="BIOS, gain maximal">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE950;" Margin="0,0,10,0"/>
                                 <TextBlock Text="BIOS"/>
@@ -258,175 +265,175 @@
                                 </Border>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="RamCalc" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="RamCalc" Click="Nav_Click" AutomationProperties.Name="Timings RAM">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE8EF;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Timings RAM"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Stability" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Stability" Click="Nav_Click" AutomationProperties.Name="Stabilité RAM">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE73E;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Stabilité RAM"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="CpuStability" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="CpuStability" Click="Nav_Click" AutomationProperties.Name="Stabilité CPU">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE73E;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Stabilité CPU"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Overclocking" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Overclocking" Click="Nav_Click" AutomationProperties.Name="Overclocking">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE945;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Overclocking"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Gaming" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Gaming" Click="Nav_Click" AutomationProperties.Name="Gaming">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE7FC;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Gaming"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="NetworkAdapters" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="NetworkAdapters" Click="Nav_Click" AutomationProperties.Name="Cartes réseau">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE839;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Cartes réseau"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Dns" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Dns" Click="Nav_Click" AutomationProperties.Name="Serveurs DNS">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE774;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Serveurs DNS"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="ProcessControl" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="ProcessControl" Click="Nav_Click" AutomationProperties.Name="Priorité &amp; affinité">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xEC4A;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Priorité &amp; affinité"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Latency" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Latency" Click="Nav_Click" AutomationProperties.Name="Latence DPC/ISR">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE916;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Latence DPC/ISR"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Services" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Services" Click="Nav_Click" AutomationProperties.Name="Services Windows">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE713;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Services Windows"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Privacy" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Privacy" Click="Nav_Click" AutomationProperties.Name="Confidentialité">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xEA18;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Confidentialité"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="GameOpti" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="GameOpti" Click="Nav_Click" AutomationProperties.Name="Optimisations jeu">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE9E9;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Optimisations jeu"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="RestorePoints" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="RestorePoints" Click="Nav_Click" AutomationProperties.Name="Points de restauration">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE81C;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Points de restauration"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="SleepHib" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="SleepHib" Click="Nav_Click" AutomationProperties.Name="Veille &amp; hibernation">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE708;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Veille &amp; hibernation"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="VisualEffects" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="VisualEffects" Click="Nav_Click" AutomationProperties.Name="Effets visuels">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE771;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Effets visuels"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Memory" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Memory" Click="Nav_Click" AutomationProperties.Name="Mémoire vive">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE950;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Mémoire vive"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="MemoryModules" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="MemoryModules" Click="Nav_Click" AutomationProperties.Name="Barrettes mémoire">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE950;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Barrettes mémoire"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Pagefile" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Pagefile" Click="Nav_Click" AutomationProperties.Name="Mémoire virtuelle">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE7C3;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Mémoire virtuelle"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Audio" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Audio" Click="Nav_Click" AutomationProperties.Name="Son">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE767;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Son"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="WindowsUpdate" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="WindowsUpdate" Click="Nav_Click" AutomationProperties.Name="Windows Update">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE777;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Windows Update"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Display" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Display" Click="Nav_Click" AutomationProperties.Name="Affichage">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE7F4;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Affichage"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Benchmark" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Benchmark" Click="Nav_Click" AutomationProperties.Name="Benchmark">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE916;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Benchmark"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Drivers" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Drivers" Click="Nav_Click" AutomationProperties.Name="Pilotes">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE968;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Pilotes"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Devices" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Devices" Click="Nav_Click" AutomationProperties.Name="Périphériques">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE765;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Périphériques"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Monitoring" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Monitoring" Click="Nav_Click" AutomationProperties.Name="Monitoring">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE9D9;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Monitoring"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Profiles" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Profiles" Click="Nav_Click" AutomationProperties.Name="Profils">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE748;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Profils"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Journal" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Journal" Click="Nav_Click" AutomationProperties.Name="Journal">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE81C;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Journal"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Snapshots" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Snapshots" Click="Nav_Click" AutomationProperties.Name="Instantanés système">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE722;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Instantanés système"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Tips" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Tips" Click="Nav_Click" AutomationProperties.Name="Conseils">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE82F;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Conseils"/>
@@ -437,19 +444,19 @@
                     </Grid>
 
                     <StackPanel Grid.Row="2" Margin="6,12,6,12">
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Transparency" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Transparency" Click="Nav_Click" AutomationProperties.Name="Transparence">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xEA18;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Transparence"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="License" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="License" Click="Nav_Click" AutomationProperties.Name="Licence">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE192;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Licence"/>
                             </StackPanel>
                         </RadioButton>
-                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Settings" Click="Nav_Click">
+                        <RadioButton Style="{StaticResource NavButton}" GroupName="Nav" Tag="Settings" Click="Nav_Click" AutomationProperties.Name="Paramètres">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" Text="&#xE713;" Margin="0,0,10,0"/>
                                 <TextBlock Text="Paramètres"/>
@@ -463,7 +470,9 @@
             </Border>
 
             <!-- ===== Content area ===== -->
-            <ContentControl Grid.Column="1" Grid.Row="1" Content="{Binding CurrentViewModel}"/>
+            <!-- Name the main content region after the live page so a screen reader announces where focus landed after a nav. -->
+            <ContentControl Grid.Column="1" Grid.Row="1" Content="{Binding CurrentViewModel}"
+                            AutomationProperties.Name="{Binding CurrentPageLabel}"/>
 
             <!-- ===== Command palette overlay (Ctrl+K) — Linear-style jump-to-anything ===== -->
             <Grid Grid.Row="0" Grid.RowSpan="2" Grid.Column="0" Grid.ColumnSpan="2"
@@ -506,7 +515,8 @@
                                          FontSize="16" VerticalContentAlignment="Center"
                                          Text="{Binding Palette.Query, UpdateSourceTrigger=PropertyChanged}"
                                          PreviewKeyDown="PaletteSearch_PreviewKeyDown"
-                                         IsVisibleChanged="PaletteSearch_IsVisibleChanged"/>
+                                         IsVisibleChanged="PaletteSearch_IsVisibleChanged"
+                                         AutomationProperties.Name="Rechercher une page, une action ou un tweak"/>
                                 <TextBlock Text="Rechercher une page, une action ou un tweak…" FontSize="16"
                                            Foreground="{StaticResource Brush.Text.Faint}"
                                            VerticalAlignment="Center" IsHitTestVisible="False">
@@ -532,7 +542,8 @@
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                  ItemsSource="{Binding Palette.Results}"
                                  SelectedIndex="{Binding Palette.SelectedIndex, Mode=TwoWay}"
-                                 PreviewMouseLeftButtonUp="PaletteResults_PreviewMouseLeftButtonUp">
+                                 PreviewMouseLeftButtonUp="PaletteResults_PreviewMouseLeftButtonUp"
+                                 AutomationProperties.Name="Résultats de recherche">
                             <ListBox.ItemContainerStyle>
                                 <Style TargetType="ListBoxItem">
                                     <Setter Property="Margin" Value="0,1"/>

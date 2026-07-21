@@ -57,6 +57,56 @@ internal static class NvApi
     private const int DOMAIN_MEMORY = 4;            // NVAPI_GPU_PUBLIC_CLOCK_MEMORY
     private const int PSTATE_P0 = 0;               // performance state P0 (3D)
     private const int NVAPI_OK = 0;
+    private const int NVAPI_INVALID_USER_PRIVILEGE = -137;   // write refused without elevation
+
+    // ---- Client power policies (power limit) ------------------------------------------------
+    // Community function ids — the same undocumented-by-NVIDIA interface every OC tool
+    // (Afterburner-class) uses. The V1 layouts below were VERIFIED LIVE on this project's dev GPU
+    // (RTX 4080 SUPER, driver 32.0.16.1062, 2026-07-20) with a read-only sweep probe: the driver
+    // accepts exactly (184 | 1<<16) for GetInfo and (72 | 1<<16) for GetStatus, and the
+    // per-cent-mille values sit at the offsets below (read: min 46 875 / default 100 000 /
+    // max 120 313; current 119 000 — matching the machine's real Afterburner setting). A wrong
+    // size/version fails safe (NVAPI_INCOMPATIBLE_STRUCT_VERSION) and writes nothing.
+    private const uint ID_PowerPoliciesGetInfo   = 0x34206D86;
+    private const uint ID_PowerPoliciesGetStatus = 0x70916171;
+    private const uint ID_PowerPoliciesSetStatus = 0xAD95F5ED;
+
+    private const int PWR_INFO_SIZE = 184;
+    private const uint PWR_INFO_VER1 = PWR_INFO_SIZE | (1u << 16);
+    private const int PWR_INFO_MIN = 20;            // per-cent-mille (100 000 = 100 %)
+    private const int PWR_INFO_DEF = 32;
+    private const int PWR_INFO_MAX = 44;
+
+    private const int PWR_STAT_SIZE = 72;
+    private const uint PWR_STAT_VER1 = PWR_STAT_SIZE | (1u << 16);
+    private const int PWR_STAT_COUNT = 4;           // u32 entry count
+    private const int PWR_STAT_ENTRIES = 8;         // entries[4], 16 bytes each
+    private const int PWR_STAT_ENTRY_STRIDE = 16;
+    private const int PWR_STAT_POWER_IN_ENTRY = 8;  // per-cent-mille target within an entry
+
+    // ---- Client thermal policies (temperature target) ----------------------------------------
+    // Same community interface family as the power policies. V1 layouts VERIFIED LIVE on the dev
+    // RTX 4080 SUPER (2026-07-20) by the same read-only sweep probe: GetInfo accepts exactly
+    // (88 | 1<<16) and read min 16 640 / default 21 504 / max 22 528 — i.e. 65 / 84 / 88 °C in
+    // <<8 fixed point, matching the card's documented Afterburner window; GetLimit accepts
+    // (40 | 1<<16) and read 22 528 = 88 °C, the machine's real raised temp target. Values are
+    // °C × 256. A wrong size/version fails safe and writes nothing.
+    private const uint ID_ThermalPoliciesGetInfo  = 0x0D258BB5;
+    private const uint ID_ThermalPoliciesGetLimit = 0xE9C425A1;
+    private const uint ID_ThermalPoliciesSetLimit = 0x34C0B13D;
+
+    private const int THERM_INFO_SIZE = 88;
+    private const uint THERM_INFO_VER1 = THERM_INFO_SIZE | (1u << 16);
+    private const int THERM_INFO_MIN = 16;          // °C << 8
+    private const int THERM_INFO_DEF = 20;
+    private const int THERM_INFO_MAX = 24;
+
+    private const int THERM_LIMIT_SIZE = 40;
+    private const uint THERM_LIMIT_VER1 = THERM_LIMIT_SIZE | (1u << 16);
+    private const int THERM_LIMIT_COUNT = 4;        // u32 entry count
+    private const int THERM_LIMIT_ENTRIES = 8;      // entries[4], 8 bytes each: {controller, value}
+    private const int THERM_LIMIT_ENTRY_STRIDE = 8;
+    private const int THERM_LIMIT_VALUE_IN_ENTRY = 4;
 
     private static bool _initTried;
     private static bool _initOk;
@@ -64,6 +114,12 @@ internal static class NvApi
     private static GetFullNameDelegate? _getName;
     private static Pstates20Delegate? _getPstates;
     private static Pstates20Delegate? _setPstates;
+    private static Pstates20Delegate? _pwrGetInfo;
+    private static Pstates20Delegate? _pwrGetStatus;
+    private static Pstates20Delegate? _pwrSetStatus;
+    private static Pstates20Delegate? _thermGetInfo;
+    private static Pstates20Delegate? _thermGetLimit;
+    private static Pstates20Delegate? _thermSetLimit;
 
     private static TDelegate? GetDelegate<TDelegate>(uint id) where TDelegate : Delegate
     {
@@ -86,6 +142,15 @@ internal static class NvApi
             _getName = GetDelegate<GetFullNameDelegate>(ID_GPU_GetFullName);
             _getPstates = GetDelegate<Pstates20Delegate>(ID_GPU_GetPstates20);
             _setPstates = GetDelegate<Pstates20Delegate>(ID_GPU_SetPstates20);
+
+            // Power/thermal-policy functions are optional extras: their absence must not disable
+            // the core offsets backend, so they deliberately don't participate in _initOk.
+            _pwrGetInfo = GetDelegate<Pstates20Delegate>(ID_PowerPoliciesGetInfo);
+            _pwrGetStatus = GetDelegate<Pstates20Delegate>(ID_PowerPoliciesGetStatus);
+            _pwrSetStatus = GetDelegate<Pstates20Delegate>(ID_PowerPoliciesSetStatus);
+            _thermGetInfo = GetDelegate<Pstates20Delegate>(ID_ThermalPoliciesGetInfo);
+            _thermGetLimit = GetDelegate<Pstates20Delegate>(ID_ThermalPoliciesGetLimit);
+            _thermSetLimit = GetDelegate<Pstates20Delegate>(ID_ThermalPoliciesSetLimit);
 
             _initOk = _enum is not null && _getPstates is not null && _setPstates is not null;
             return _initOk;
@@ -141,12 +206,19 @@ internal static class NvApi
             int numPstates = Marshal.ReadInt32(buf, 8);
             if (numPstates is <= 0 or > 16) numPstates = 16;
 
+            // Bound the clock loop by the driver-reported numClocks (global header, offset 12). The
+            // trailing clock slots we zeroed before the call read back as domain 0 — which equals
+            // DOMAIN_GRAPHICS — so iterating all 8 would let an empty slot overwrite the real core
+            // offset with 0. Only the first numClocks entries are valid.
+            int numClocks = Marshal.ReadInt32(buf, 12);
+            if (numClocks is <= 0 or > 8) numClocks = 8;
+
             for (int i = 0; i < numPstates; i++)
             {
                 int pBase = HEADER + i * PSTATE_STRIDE;
                 if (Marshal.ReadInt32(buf, pBase) != PSTATE_P0) continue;   // want P0 only
 
-                for (int c = 0; c < 8; c++)
+                for (int c = 0; c < numClocks; c++)
                 {
                     int cBase = pBase + CLOCKS_OFFSET + c * CLOCK_STRIDE;
                     int domain = Marshal.ReadInt32(buf, cBase);
@@ -222,6 +294,296 @@ internal static class NvApi
         {
             Marshal.FreeHGlobal(buf);
         }
+    }
+
+    /// <summary>Read the card's power-limit window (min/default/max, per-cent-mille). Strict: false unless the triplet reads plausible and ordered.</summary>
+    public static bool TryReadPowerInfo(IntPtr gpu, out int minPcm, out int defPcm, out int maxPcm)
+    {
+        minPcm = defPcm = maxPcm = 0;
+        if (!TryInitialize() || _pwrGetInfo is null || gpu == IntPtr.Zero) return false;
+
+        IntPtr buf = Marshal.AllocHGlobal(PWR_INFO_SIZE);
+        try
+        {
+            Zero(buf, PWR_INFO_SIZE);
+            Marshal.WriteInt32(buf, 0, unchecked((int)PWR_INFO_VER1));
+            if (_pwrGetInfo(gpu, buf) != NVAPI_OK) return false;
+
+            minPcm = Marshal.ReadInt32(buf, PWR_INFO_MIN);
+            defPcm = Marshal.ReadInt32(buf, PWR_INFO_DEF);
+            maxPcm = Marshal.ReadInt32(buf, PWR_INFO_MAX);
+            // The layout is community-documented, not NVIDIA-documented: one implausible field
+            // and the whole power feature honestly reports unavailable rather than trusting it.
+            return GpuPowerLimit.IsPlausibleWindow(minPcm, defPcm, maxPcm);
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buf);
+        }
+    }
+
+    /// <summary>Read the current power-limit target (per-cent-mille) from the first plausible status entry.</summary>
+    public static bool TryReadPowerTarget(IntPtr gpu, out int currentPcm)
+    {
+        currentPcm = 0;
+        if (!TryInitialize() || _pwrGetStatus is null || gpu == IntPtr.Zero) return false;
+
+        IntPtr buf = Marshal.AllocHGlobal(PWR_STAT_SIZE);
+        try
+        {
+            Zero(buf, PWR_STAT_SIZE);
+            Marshal.WriteInt32(buf, 0, unchecked((int)PWR_STAT_VER1));
+            if (_pwrGetStatus(gpu, buf) != NVAPI_OK) return false;
+            return TryLocatePowerEntry(buf, out _, out currentPcm);
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buf);
+        }
+    }
+
+    /// <summary>
+    /// Set the power-limit target (per-cent-mille). Read-modify-write: the buffer GetStatus just
+    /// returned is patched in exactly one field and written back (unknown fields preserved), then
+    /// re-read — success is reported ONLY when the read-back equals the requested value, so a
+    /// driver that ignored or re-clamped the write can never be presented as a success.
+    /// </summary>
+    public static bool TrySetPowerTarget(IntPtr gpu, int targetPcm, out string error)
+    {
+        error = string.Empty;
+        if (!TryInitialize() || _pwrGetStatus is null || _pwrSetStatus is null || gpu == IntPtr.Zero)
+        {
+            error = "NVAPI power limit indisponible.";
+            return false;
+        }
+
+        IntPtr buf = Marshal.AllocHGlobal(PWR_STAT_SIZE);
+        try
+        {
+            Zero(buf, PWR_STAT_SIZE);
+            Marshal.WriteInt32(buf, 0, unchecked((int)PWR_STAT_VER1));
+            if (_pwrGetStatus(gpu, buf) != NVAPI_OK)
+            {
+                error = "Lecture préalable du power limit refusée par le driver.";
+                return false;
+            }
+            if (!TryLocatePowerEntry(buf, out int offset, out _))
+            {
+                error = "Disposition power limit inattendue — écriture refusée par prudence.";
+                return false;
+            }
+
+            Marshal.WriteInt32(buf, offset, targetPcm);
+            int status = _pwrSetStatus(gpu, buf);
+            if (status == NVAPI_INVALID_USER_PRIVILEGE)
+            {
+                error = "Écriture refusée : privilèges insuffisants (lancer Aurum en administrateur).";
+                return false;
+            }
+            if (status != NVAPI_OK)
+            {
+                error = $"NVAPI a refusé l'écriture du power limit (code {status}).";
+                return false;
+            }
+
+            // Confirmation read-back — the honesty gate: no confirmed read, no claimed success.
+            Zero(buf, PWR_STAT_SIZE);
+            Marshal.WriteInt32(buf, 0, unchecked((int)PWR_STAT_VER1));
+            if (_pwrGetStatus(gpu, buf) != NVAPI_OK || !TryLocatePowerEntry(buf, out _, out int readBack))
+            {
+                error = "Écriture envoyée mais relecture impossible — état non confirmé.";
+                return false;
+            }
+            if (readBack != targetPcm)
+            {
+                error = $"Écriture non confirmée : le driver rapporte {GpuPowerLimit.FromPcm(readBack)} % "
+                      + $"au lieu de {GpuPowerLimit.FromPcm(targetPcm)} %.";
+                return false;
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buf);
+        }
+    }
+
+    /// <summary>Read the card's temperature-target window (min/default/max, °C·256). Strict: false unless the triplet reads plausible and ordered.</summary>
+    public static bool TryReadThermalInfo(IntPtr gpu, out int minRaw, out int defRaw, out int maxRaw)
+    {
+        minRaw = defRaw = maxRaw = 0;
+        if (!TryInitialize() || _thermGetInfo is null || gpu == IntPtr.Zero) return false;
+
+        IntPtr buf = Marshal.AllocHGlobal(THERM_INFO_SIZE);
+        try
+        {
+            Zero(buf, THERM_INFO_SIZE);
+            Marshal.WriteInt32(buf, 0, unchecked((int)THERM_INFO_VER1));
+            if (_thermGetInfo(gpu, buf) != NVAPI_OK) return false;
+
+            minRaw = Marshal.ReadInt32(buf, THERM_INFO_MIN);
+            defRaw = Marshal.ReadInt32(buf, THERM_INFO_DEF);
+            maxRaw = Marshal.ReadInt32(buf, THERM_INFO_MAX);
+            // Community-documented layout: one implausible field and the whole thermal feature
+            // honestly reports unavailable rather than trusting it.
+            return GpuThermalLimit.IsPlausibleWindow(minRaw, defRaw, maxRaw);
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buf);
+        }
+    }
+
+    /// <summary>Read the current temperature target (°C·256) from the first plausible limit entry.</summary>
+    public static bool TryReadThermalLimit(IntPtr gpu, out int currentRaw)
+    {
+        currentRaw = 0;
+        if (!TryInitialize() || _thermGetLimit is null || gpu == IntPtr.Zero) return false;
+
+        IntPtr buf = Marshal.AllocHGlobal(THERM_LIMIT_SIZE);
+        try
+        {
+            Zero(buf, THERM_LIMIT_SIZE);
+            Marshal.WriteInt32(buf, 0, unchecked((int)THERM_LIMIT_VER1));
+            if (_thermGetLimit(gpu, buf) != NVAPI_OK) return false;
+            return TryLocateThermalEntry(buf, out _, out currentRaw);
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buf);
+        }
+    }
+
+    /// <summary>
+    /// Set the temperature target (°C·256). Same honesty contract as the power write: read-modify-write
+    /// of the exact buffer GetLimit just returned, then a mandatory read-back — success is reported ONLY
+    /// when the re-read equals the requested value.
+    /// </summary>
+    public static bool TrySetThermalLimit(IntPtr gpu, int targetRaw, out string error)
+    {
+        error = string.Empty;
+        if (!TryInitialize() || _thermGetLimit is null || _thermSetLimit is null || gpu == IntPtr.Zero)
+        {
+            error = "NVAPI cible température indisponible.";
+            return false;
+        }
+
+        IntPtr buf = Marshal.AllocHGlobal(THERM_LIMIT_SIZE);
+        try
+        {
+            Zero(buf, THERM_LIMIT_SIZE);
+            Marshal.WriteInt32(buf, 0, unchecked((int)THERM_LIMIT_VER1));
+            if (_thermGetLimit(gpu, buf) != NVAPI_OK)
+            {
+                error = "Lecture préalable de la cible température refusée par le driver.";
+                return false;
+            }
+            if (!TryLocateThermalEntry(buf, out int offset, out _))
+            {
+                error = "Disposition cible température inattendue — écriture refusée par prudence.";
+                return false;
+            }
+
+            Marshal.WriteInt32(buf, offset, targetRaw);
+            int status = _thermSetLimit(gpu, buf);
+            if (status == NVAPI_INVALID_USER_PRIVILEGE)
+            {
+                error = "Écriture refusée : privilèges insuffisants (lancer Aurum en administrateur).";
+                return false;
+            }
+            if (status != NVAPI_OK)
+            {
+                error = $"NVAPI a refusé l'écriture de la cible température (code {status}).";
+                return false;
+            }
+
+            Zero(buf, THERM_LIMIT_SIZE);
+            Marshal.WriteInt32(buf, 0, unchecked((int)THERM_LIMIT_VER1));
+            if (_thermGetLimit(gpu, buf) != NVAPI_OK || !TryLocateThermalEntry(buf, out _, out int readBack))
+            {
+                error = "Écriture envoyée mais relecture impossible — état non confirmé.";
+                return false;
+            }
+            if (readBack != targetRaw)
+            {
+                error = $"Écriture non confirmée : le driver rapporte {GpuThermalLimit.FromRaw(readBack)} °C "
+                      + $"au lieu de {GpuThermalLimit.FromRaw(targetRaw)} °C.";
+                return false;
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buf);
+        }
+    }
+
+    /// <summary>Find the limit entry holding the plausible °C·256 target; returns its byte offset.</summary>
+    private static bool TryLocateThermalEntry(IntPtr limitBuf, out int valueOffset, out int valueRaw)
+    {
+        valueOffset = 0;
+        valueRaw = 0;
+        int count = Marshal.ReadInt32(limitBuf, THERM_LIMIT_COUNT);
+        if (count is < 1 or > 4) return false;
+        for (int i = 0; i < count; i++)
+        {
+            int off = THERM_LIMIT_ENTRIES + i * THERM_LIMIT_ENTRY_STRIDE + THERM_LIMIT_VALUE_IN_ENTRY;
+            int v = Marshal.ReadInt32(limitBuf, off);
+            if (GpuThermalLimit.IsPlausibleRaw(v))
+            {
+                valueOffset = off;
+                valueRaw = v;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>Find the status entry holding the plausible per-cent-mille target; returns its byte offset.</summary>
+    private static bool TryLocatePowerEntry(IntPtr statusBuf, out int powerOffset, out int powerPcm)
+    {
+        powerOffset = 0;
+        powerPcm = 0;
+        int count = Marshal.ReadInt32(statusBuf, PWR_STAT_COUNT);
+        if (count is < 1 or > 4) return false;
+        for (int i = 0; i < count; i++)
+        {
+            int off = PWR_STAT_ENTRIES + i * PWR_STAT_ENTRY_STRIDE + PWR_STAT_POWER_IN_ENTRY;
+            int v = Marshal.ReadInt32(statusBuf, off);
+            if (GpuPowerLimit.IsPlausiblePcm(v))
+            {
+                powerOffset = off;
+                powerPcm = v;
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void Zero(IntPtr ptr, int size)

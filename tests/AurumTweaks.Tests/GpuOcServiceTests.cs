@@ -6,15 +6,17 @@ using Xunit;
 namespace AurumTweaks.Tests;
 
 /// <summary>
-/// Tests for the GPU overclocking service. These cover ONLY the surfaces that can never touch
-/// native NVAPI: the pure <see cref="GpuOcValidation"/> logic, the AMD/Unknown status branches
-/// (which return without probing nvapi64.dll), and an out-of-range <see cref="GpuOcService.ApplyAsync"/>
-/// (rejected at validation BEFORE any native call).
+/// Tests for the GPU overclocking service. These cover ONLY surfaces that can never WRITE to a live
+/// GPU: the pure <see cref="GpuOcValidation"/> logic, the vendor status branches, and an out-of-range
+/// <see cref="GpuOcService.ApplyAsync"/> (rejected at validation BEFORE any native call).
 ///
 /// <para><b>Why so constrained:</b> the dev/CI machine has a real NVIDIA GPU. An in-range
 /// <c>ApplyAsync</c>/<c>ResetAsync</c>, or the NVIDIA <c>GetStatusAsync</c> branch, would actually
-/// drive NVAPI and change the live card's clocks during <c>dotnet test</c>. Those paths are
-/// intentionally never exercised here.</para>
+/// drive NVAPI and change the live card's state during <c>dotnet test</c>. Those paths are
+/// intentionally never exercised here. The AMD status branch DOES perform a real, strictly
+/// <b>read-only</b> ADLX probe (loads amdadlx64.dll when an AMD driver is present, reads support
+/// flags, writes nothing) — so its assertions pin the honesty invariant for whichever outcome the
+/// machine genuinely reports, rather than assuming one.</para>
 /// </summary>
 public class GpuOcServiceTests
 {
@@ -56,6 +58,12 @@ public class GpuOcServiceTests
     public void Validate_OutOfRange_ReturnsError(int core, int mem, int power, int temp)
         => Assert.NotNull(GpuOcValidation.Validate(Profile(core, mem, power, temp)));
 
+    [Fact]
+    public void ValidateFrequencies_IgnoresThePowerAxis_ItIsBackendSpecific()
+        // An AMD Adrenalin-scale power value (possibly negative) must not be rejected by the
+        // backend-agnostic gate — each vendor path validates power against its own window.
+        => Assert.Null(GpuOcValidation.ValidateFrequencies(Profile(power: -10)));
+
     // ---- Pure clamp: pulls into range, no-op when already inside ----------
 
     [Fact]
@@ -91,14 +99,28 @@ public class GpuOcServiceTests
     // ---- Vendor decision: AMD / Unknown never probe NVAPI -----------------
 
     [Fact]
-    public async Task GetStatus_Amd_ReportsUnavailable_AndPointsToAdrenalin()
+    public async Task GetStatus_Amd_IsHonest_EitherVerifiedAdlxPower_OrAdrenalinReferral()
     {
+        // Machine-agnostic honesty invariant: whichever way the read-only ADLX probe resolves on the
+        // machine running the tests, the status must carry the matching proof obligations — a native
+        // claim must name ADLX + read-back, an unavailable state must refer to Adrenalin.
         var status = await ServiceFor(GpuVendor.Amd, "AMD Radeon RX 7900 XTX").GetStatusAsync();
 
         Assert.Equal(GpuVendor.Amd, status.Vendor);
-        Assert.False(status.BackendAvailable);
         Assert.NotNull(status.Message);
-        Assert.Contains("Adrenalin", status.Message!);
+        if (status.PowerLimitNative)
+        {
+            Assert.True(status.BackendAvailable);
+            Assert.Equal(GpuPowerBackendKind.AdlxDocumented, status.PowerBackend);
+            Assert.Contains("ADLX", status.Message!);
+            Assert.Contains("relecture", status.Message!);
+            Assert.True(status.PowerLimitMinPct < status.PowerLimitMaxPct);
+        }
+        else
+        {
+            Assert.False(status.BackendAvailable);
+            Assert.Contains("Adrenalin", status.Message!);
+        }
     }
 
     [Fact]

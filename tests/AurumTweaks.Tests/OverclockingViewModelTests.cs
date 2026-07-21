@@ -107,7 +107,41 @@ public class OverclockingViewModelTests
         Assert.Equal(1, oc.ResetCount);
         Assert.Equal(0, vm.GpuCoreOffsetMhz);
         Assert.Equal(0, vm.GpuMemOffsetMhz);
-        Assert.Contains("remis à zéro", vm.AutoOcStatus);
+        // The status surfaces the service's per-axis summary, not a fixed string.
+        Assert.Contains("remis à 0", vm.AutoOcStatus);
+    }
+
+    [Fact]
+    public async Task ApplyGpuOc_NativeWriteFails_ShowsErreur_NeverAppliqué()
+    {
+        // The honesty-critical failure branch: a failed native write must read as an error, never as a
+        // successful apply. Now testable because the fake can return Success=false.
+        var oc = new FakeGpuOcService(succeed: false);
+        var vm = NewVm(oc);
+        vm.GpuCoreOffsetMhz = 150;
+
+        await vm.ApplyGpuOcCommand.ExecuteAsync(null);
+
+        Assert.StartsWith("Erreur", vm.AutoOcStatus);
+        Assert.DoesNotContain("Appliqué", vm.AutoOcStatus);
+    }
+
+    [Fact]
+    public async Task ResetOc_NativeResetFails_ShowsErreur_AndDoesNotZeroTheSliders()
+    {
+        // On a failed reset the card still holds the OC, so the sliders must keep showing it — zeroing
+        // them would make the page claim a reset that never happened.
+        var oc = new FakeGpuOcService(succeed: false);
+        var vm = NewVm(oc);
+        vm.GpuCoreOffsetMhz = 150;
+        vm.GpuMemOffsetMhz = 1200;
+
+        await vm.ResetOcCommand.ExecuteAsync(null);
+
+        Assert.StartsWith("Erreur", vm.AutoOcStatus);
+        Assert.DoesNotContain("remis", vm.AutoOcStatus);
+        Assert.Equal(150, vm.GpuCoreOffsetMhz);   // still shows the on-card OC, not a fabricated 0
+        Assert.Equal(1200, vm.GpuMemOffsetMhz);
     }
 
     // ---- Power-limit / voltage sliders are NOT dead controls: a successful apply admits they weren't applied ----
@@ -132,11 +166,49 @@ public class OverclockingViewModelTests
     }
 
     [Fact]
-    public void GpuSlidersNote_IsAStandingDisclosure_ThatPowerAndVoltageArentApplied()
+    public void GpuSlidersNote_NoVerifiedBackend_ClaimsNothing_AndPointsToTheRealTools()
     {
+        // The default fake reports BackendAvailable=false — claiming "Aurum applies core/mem natively"
+        // on a machine with no verified backend would itself be an overclaim.
         var vm = NewVm();
+        Assert.Contains("Aucun backend", vm.GpuSlidersNote);
+        Assert.Contains("Afterburner", vm.GpuSlidersNote);
+    }
+
+    [Fact]
+    public void GpuSlidersNote_NvidiaBackendUp_ClaimsCoreMem_AndDisownsPowerAndVoltage()
+    {
+        var vm = NewVm(new FakeGpuOcService(new GpuOcBackendStatus(GpuVendor.Nvidia, "Test GPU", BackendAvailable: true)));
         Assert.Contains("core et mémoire", vm.GpuSlidersNote);   // names what Aurum genuinely applies
-        Assert.Contains("Afterburner", vm.GpuSlidersNote);       // and where to set the rest
+        Assert.Contains("power limit", vm.GpuSlidersNote);       // and what it doesn't (unverified here)
+        Assert.Contains("voltage", vm.GpuSlidersNote);
+        Assert.Contains("Afterburner", vm.GpuSlidersNote);
+    }
+
+    [Fact]
+    public void GpuSlidersNote_AmdAdlxBackend_ClaimsPowerViaDocumentedApi_NotOffsets()
+    {
+        var vm = NewVm(new FakeGpuOcService(new GpuOcBackendStatus(
+            GpuVendor.Amd, "Radeon Test", BackendAvailable: true,
+            PowerBackend: GpuPowerBackendKind.AdlxDocumented,
+            PowerLimitMinPct: -10, PowerLimitMaxPct: 15, PowerLimitDefaultPct: 0)));
+
+        Assert.Contains("power limit", vm.GpuSlidersNote);
+        Assert.Contains("ADLX", vm.GpuSlidersNote);
+        Assert.Contains("officielle", vm.GpuSlidersNote);         // AMD's documented API, not "undocumented"
+        Assert.DoesNotContain("pas documentée", vm.GpuSlidersNote);
+        Assert.Contains("offsets core/mémoire", vm.GpuSlidersNote); // referred, since NVAPI offsets don't apply on AMD
+    }
+
+    [Fact]
+    public void PowerSliderBounds_AreTheVerifiedBackendWindow_WhenNative_ElseTheGenericRange()
+    {
+        Assert.Equal(50, NewVm().PowerSliderMinPct);
+        Assert.Equal(133, NewVm().PowerSliderMaxPct);
+
+        var native = NewVm(new FakeGpuOcService(NativePowerStatus()));
+        Assert.Equal(47, native.PowerSliderMinPct);   // the card's real window, not the generic 50–133
+        Assert.Equal(120, native.PowerSliderMaxPct);
     }
 
     // ---- Freemium gate: GPU OC is a Premium feature. A configured Free build must refuse to apply (and say so
@@ -195,6 +267,130 @@ public class OverclockingViewModelTests
         await license.ActivateAsync("any");                       // a key activated elsewhere → Premium + EditionChanged
 
         Assert.Empty(vm.GpuOcLockNote);                           // banner clears without rebuilding the page
+    }
+
+    // ---- Verified-native power limit: the disclosure flips exactly with the backend's verification ----
+
+    private static GpuOcBackendStatus NativePowerStatus()
+        => new(GpuVendor.Nvidia, "Test GPU", BackendAvailable: true,
+               PowerBackend: GpuPowerBackendKind.NvapiCommunity, PowerLimitMinPct: 47, PowerLimitMaxPct: 120);
+
+    [Fact]
+    public async Task ApplyGpuOc_PowerNative_NoLongerDisclaimsThePowerLimit_ButStillDisclaimsVoltage()
+    {
+        var oc = new FakeGpuOcService(NativePowerStatus());
+        var vm = NewVm(oc);
+        vm.GpuCoreOffsetMhz = 150;
+        vm.GpuPowerLimitPct = 120;       // genuinely applied on a verified card…
+        vm.GpuTargetVoltageMv = 875;     // …voltage never is
+
+        await vm.ApplyGpuOcCommand.ExecuteAsync(null);
+
+        Assert.StartsWith("Appliqué", vm.AutoOcStatus);
+        // Assert on the disclaimer CLAUSE (after " — "), not the whole string: the power limit genuinely
+        // applied on a verified card, so it must never appear in the "non appliqué" clause. Checking the
+        // clause specifically means the test can't be satisfied merely by the fake omitting power from
+        // its Applied summary — it pins the real invariant.
+        var idx = vm.AutoOcStatus.IndexOf(" — ", System.StringComparison.Ordinal);
+        Assert.True(idx >= 0, "expected a disclaimer clause for the voltage Aurum does not apply");
+        var disclaimer = vm.AutoOcStatus[(idx + 3)..];
+        Assert.Contains("voltage", disclaimer);
+        Assert.Contains("non appliqué", disclaimer);
+        Assert.DoesNotContain("power limit", disclaimer);
+    }
+
+    [Fact]
+    public void GpuSlidersNote_PowerNative_ClaimsPowerLimit_WithTheReadBackCaveat()
+    {
+        var vm = NewVm(new FakeGpuOcService(NativePowerStatus()));
+        Assert.Contains("power limit", vm.GpuSlidersNote);
+        Assert.Contains("relecture", vm.GpuSlidersNote);      // the confirmation caveat, not a bare claim
+    }
+
+    [Fact]
+    public void PowerLimitRowLabel_FollowsTheBackendVerification()
+    {
+        Assert.Equal("Power limit (via Afterburner)", NewVm().PowerLimitRowLabel);                       // unverified
+        Assert.Equal("Power limit", NewVm(new FakeGpuOcService(NativePowerStatus())).PowerLimitRowLabel); // verified
+    }
+
+    [Fact]
+    public void Load_PowerNative_PrefillsTheRealCardPowerLimit()
+    {
+        // The service read 119 % from the card → the slider must show the measured state, not a guess.
+        var oc = new FakeGpuOcService(NativePowerStatus(), current: new GpuOcProfile(0, 0, 119, 0, 0));
+        Assert.Equal(119, NewVm(oc).GpuPowerLimitPct);
+    }
+
+    [Fact]
+    public void Load_PowerNotNative_IgnoresTheProfilePowerPlaceholder()
+    {
+        // Without verification the profile's power field is a neutral placeholder, not a measurement —
+        // prefilling from it would fabricate a metric.
+        var oc = new FakeGpuOcService(current: new GpuOcProfile(0, 0, 119, 0, 0));
+        Assert.Equal(100, NewVm(oc).GpuPowerLimitPct);
+    }
+
+    // ---- Verified-native temperature target: the row only exists when it genuinely applies ----
+
+    private static GpuOcBackendStatus NativeThermStatus()
+        => new(GpuVendor.Nvidia, "Test GPU", BackendAvailable: true,
+               PowerBackend: GpuPowerBackendKind.NvapiCommunity, PowerLimitMinPct: 47, PowerLimitMaxPct: 120,
+               TempLimitNative: true, TempLimitMinC: 65, TempLimitMaxC: 88, TempLimitDefaultC: 84);
+
+    [Fact]
+    public void TempRow_HiddenByDefault_VisibleOnlyWhenVerifiedNative()
+    {
+        // A visible-but-unapplied temp slider would be a dead control; a hidden-but-applied axis worse.
+        Assert.False(NewVm().TempLimitNative);
+        Assert.True(NewVm(new FakeGpuOcService(NativeThermStatus())).TempLimitNative);
+    }
+
+    [Fact]
+    public void TempSliderBounds_AreTheCardsOwnVerifiedWindow_WhenNative()
+    {
+        var vm = NewVm(new FakeGpuOcService(NativeThermStatus()));
+        Assert.Equal(65, vm.TempSliderMinC);
+        Assert.Equal(88, vm.TempSliderMaxC);
+    }
+
+    [Fact]
+    public void Load_TempNative_PrefillsTheRealCardTempTarget()
+    {
+        // The service read 88 °C from the card → the slider must show the measured state, not the 83 guess.
+        var oc = new FakeGpuOcService(NativeThermStatus(), current: new GpuOcProfile(0, 0, 119, 88, 0));
+        Assert.Equal(88, NewVm(oc).GpuTempLimitC);
+    }
+
+    [Fact]
+    public void Load_TempNotNative_IgnoresTheProfileTempPlaceholder()
+    {
+        var oc = new FakeGpuOcService(current: new GpuOcProfile(0, 0, 100, 88, 0));
+        Assert.Equal(83, NewVm(oc).GpuTempLimitC);   // the untouched generic default
+    }
+
+    [Fact]
+    public async Task ResetOc_TempNative_ReturnsTheSliderToTheCardsOwnDefault()
+    {
+        var vm = NewVm(new FakeGpuOcService(NativeThermStatus(), current: new GpuOcProfile(0, 0, 119, 88, 0)));
+        Assert.Equal(88, vm.GpuTempLimitC);           // prefilled from the card
+
+        await vm.ResetOcCommand.ExecuteAsync(null);
+
+        Assert.Equal(84, vm.GpuTempLimitC);           // the card's default, not the generic 83
+    }
+
+    [Fact]
+    public async Task ApplyGpuOc_PassesTheTempTargetThroughTheProfile()
+    {
+        var oc = new FakeGpuOcService(NativeThermStatus());
+        var vm = NewVm(oc);
+        vm.GpuTempLimitC = 70;
+
+        await vm.ApplyGpuOcCommand.ExecuteAsync(null);
+
+        Assert.Single(oc.Applied);
+        Assert.Equal(70, oc.Applied[0].TempLimitC);   // the backend receives exactly the dialed target
     }
 
     [Fact]

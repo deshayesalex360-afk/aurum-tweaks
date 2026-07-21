@@ -38,7 +38,7 @@ There is no separate linter — a clean Release build (0 warnings) is the lint g
 
 **Pure-core extraction pattern (follow this).** Honesty- and correctness-bearing logic is pulled out of the I/O services into `public static` classes so it is unit-testable without touching the registry, spawning processes, or querying WMI. Examples, each living in the same file as its service: `TweakShellCommand` (builds the exact `(fileName, args)` for shell ops) and `RegistryValue` (DWord/QWord parse + numeric compare) ; plus `ShellLauncher` (URL/console allow-list), `HardwareClassification`, `BiosApplyAdvisor`, `ProfilePresets`, `NetworkRouteMath`. When you add decision logic to an I/O service, extract the decision into a pure static and test that, rather than mocking the world.
 
-**Hardware/monitoring** runs through `HardwareService` (WMI via `System.Management`) and `MonitoringService` (`LibreHardwareMonitorLib`); both need elevation for full sensor access. GPU overclocking is behind `IGpuOcService` (NVAPI/ADL abstraction, not yet a native backend).
+**Hardware/monitoring** runs through `HardwareService` (WMI via `System.Management`) and `MonitoringService` (`LibreHardwareMonitorLib`); both need elevation for full sensor access. GPU overclocking is behind `IGpuOcService`, with a real native NVAPI backend (`Services/Interop/NvApi.cs`): core/mem clock offsets always; power limit only on cards where the community-documented power-policies layout passes an on-card read-plausibility gate (`GpuPowerLimit`), with every write confirmed by read-back. Voltage/temp target are never applied; AMD is honestly referred to Adrenalin.
 
 (See `README.md` for the full directory tree, section-by-section feature map, and the design/credits context — not repeated here.)
 

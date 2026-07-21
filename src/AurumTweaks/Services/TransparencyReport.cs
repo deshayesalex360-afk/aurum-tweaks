@@ -223,7 +223,8 @@ public static class TransparencyReport
         sb.AppendLine("  - Aucun pilote noyau (ring-0), aucun module signé installé en arrière-plan.");
         sb.AppendLine("  - Aucune écriture firmware : ni flash de BIOS, ni vBIOS, ni NVRAM.");
         sb.AppendLine("  - Aucune écriture matérielle directe (tensions, VRM) ; les réglages GPU passent par les API");
-        sb.AppendLine("    du fabricant (NVAPI/ADL) quand elles existent, jamais par un accès matériel brut.");
+        sb.AppendLine("    du fabricant (NVAPI/ADLX) quand elles existent, jamais par un accès matériel brut, et");
+        sb.AppendLine("    chaque écriture GPU est confirmée par relecture avant d'être annoncée comme réussie.");
         sb.AppendLine("  - Aucune mesure inventée, aucun badge « vérifié » ou « sûr » factice, aucun bouton mort.");
         sb.AppendLine("  - Aucun logiciel tiers embarqué, aucune publicité.");
     }

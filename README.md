@@ -53,7 +53,7 @@ il sait immédiatement qu'il regarde Aurum Tweaks.
 | Tableau de bord | Marble hero + détection hardware + métriques live (CPU/GPU/RAM/temps) |
 | Tweaks Windows | Catalogue JSON-driven, 3 niveaux, filtres tier/catégorie/AC, badges colorés par tier |
 | **BIOS** | Auto-détect mobo/CPU + checklist interactive + presets RAM (DDR4/DDR5) |
-| Overclocking | Sliders GPU + auto-OC + tests de stabilité + abstraction `IGpuOcService` (NVAPI/ADL-ready) |
+| Overclocking | Sliders GPU appliqués **nativement** : offsets core/mém + power limit + cible température via NVAPI (NVIDIA, vérifiés sur carte, écritures confirmées par relecture) ; power limit via ADLX (AMD, API officielle) — voltage jamais appliqué (renvoi honnête Afterburner/Adrenalin) |
 | Gaming | Game Mode + détection auto jeux (Steam/Epic/Riot/Battle.net/...) + opti réseau |
 | Pilotes | DDU + NVCleanstall + NVIDIA Profile Inspector |
 | Monitoring | LibreHardwareMonitor live + sparkline charts 90s (CPU/GPU/Temps/RAM) |
@@ -122,7 +122,7 @@ src/AurumTweaks/
 │   ├── GameDetectionService.cs       # Multi-launcher scan
 │   ├── NetworkOptiService.cs         # Ping/jitter/loss
 │   ├── AppSettingsStore.cs           # Settings persistence (localappdata)
-│   └── GpuOcService.cs               # GPU OC abstraction (NVAPI/ADL-ready)
+│   └── GpuOcService.cs               # GPU OC natif (NVAPI offsets/power/temp + ADLX power AMD)
 ├── ViewModels/                       # 11 ViewModels (Main + 10 sections)
 ├── Views/                            # 10 UserControl views + SplashWindow + WelcomeWindow
 ├── Converters/                       # Bool/String/Tier/Risk/AC converters
@@ -149,9 +149,13 @@ src/AurumTweaks/
 - Settings persistence + first-launch welcome
 - i18n complet FR + EN
 - TweaksView avec badges tier colorés + indicateur AC risk
+- OC GPU natif : NVIDIA via NVAPI (offsets core/mém toujours ; power limit et cible température
+  seulement après vérification en lecture sur la carte — chaque écriture confirmée par relecture),
+  AMD via ADLX (API officielle, power limit seulement, gated par le driver lui-même) ; voltage
+  jamais appliqué par l'app
 
 **Roadmap court terme** :
-- NVAPI/ADL native pour OC GPU effectif (abstraction prête, scaffolding en place)
+- OC GPU AMD étendu (fréquences via ADLX ManualGFXTuning) + cible température NVIDIA sur plus de générations
 - Stress test runner intégré (Heaven/OCCT auto)
 - Network multipath routing (WFP driver)
 - FPS overlay AC-safe (PresentMon-based)

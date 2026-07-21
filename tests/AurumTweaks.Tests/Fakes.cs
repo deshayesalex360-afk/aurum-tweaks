@@ -156,14 +156,16 @@ public sealed class FakeGpuOcService : IGpuOcService
 {
     private readonly GpuOcBackendStatus _status;
     private readonly GpuOcProfile? _current;
+    private readonly bool _succeed;   // false → apply/reset return a failure, so the VM's "Erreur :" path is testable
 
     public List<GpuOcProfile> Applied { get; } = new();
     public int ResetCount { get; private set; }
 
-    public FakeGpuOcService(GpuOcBackendStatus? status = null, GpuOcProfile? current = null)
+    public FakeGpuOcService(GpuOcBackendStatus? status = null, GpuOcProfile? current = null, bool succeed = true)
     {
         _status = status ?? new GpuOcBackendStatus(GpuVendor.Nvidia, "Test GPU", BackendAvailable: false);
         _current = current;
+        _succeed = succeed;
     }
 
     public Task<GpuOcBackendStatus> GetStatusAsync() => Task.FromResult(_status);
@@ -171,7 +173,9 @@ public sealed class FakeGpuOcService : IGpuOcService
     public Task<GpuOcApplyResult> ApplyAsync(GpuOcProfile profile)
     {
         Applied.Add(profile);
-        return Task.FromResult(new GpuOcApplyResult(true, Applied: $"core +{profile.CoreOffsetMhz} MHz"));
+        return Task.FromResult(_succeed
+            ? new GpuOcApplyResult(true, Applied: $"core +{profile.CoreOffsetMhz} MHz")
+            : new GpuOcApplyResult(false, Error: "échec natif simulé"));
     }
 
     public Task<GpuOcProfile?> ReadCurrentAsync() => Task.FromResult(_current);
@@ -179,7 +183,9 @@ public sealed class FakeGpuOcService : IGpuOcService
     public Task<GpuOcApplyResult> ResetAsync()
     {
         ResetCount++;
-        return Task.FromResult(new GpuOcApplyResult(true));
+        return Task.FromResult(_succeed
+            ? new GpuOcApplyResult(true, Applied: "offsets remis à 0")
+            : new GpuOcApplyResult(false, Error: "échec natif simulé"));
     }
 }
 

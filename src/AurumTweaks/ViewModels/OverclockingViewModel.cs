@@ -27,9 +27,49 @@ public partial class OverclockingViewModel : ObservableObject
     // freemium equivalent of "no dead button". Empty (the as-shipped, not-configured case) hides the banner entirely.
     [ObservableProperty] private string _gpuOcLockNote = string.Empty;
 
-    /// <summary>Always-visible disclosure under the sliders: Aurum applies core/mem only, never power/voltage.
-    /// Bound by the view so the power-limit and voltage sliders read as Afterburner references, not dead controls.</summary>
-    public string GpuSlidersNote => GpuOcDisclosure.SlidersNote;
+    /// <summary>True only after a power-limit backend (NVAPI or ADLX) passed its on-card read verification.</summary>
+    private bool PowerLimitNative => BackendStatus?.PowerLimitNative == true;
+
+    /// <summary>Core/mem offsets apply natively only through the NVIDIA NVAPI backend.</summary>
+    private bool OffsetsNative => BackendStatus is { Vendor: GpuVendor.Nvidia, BackendAvailable: true };
+
+    /// <summary>Power slider bounds: the verified backend window when native (NVIDIA card window, or the
+    /// AMD driver's own Adrenalin-scale window); the generic reference range otherwise.</summary>
+    public int PowerSliderMinPct => PowerLimitNative ? BackendStatus!.PowerLimitMinPct : 50;
+    public int PowerSliderMaxPct => PowerLimitNative ? BackendStatus!.PowerLimitMaxPct : 133;
+
+    /// <summary>True only after the temperature-target backend passed its on-card read verification.
+    /// Public: the view collapses the whole temp slider row on it — the control only exists when it
+    /// genuinely applies (no dead control, and no hidden axis silently written either).</summary>
+    public bool TempLimitNative => BackendStatus?.TempLimitNative == true;
+
+    /// <summary>Temp slider bounds: the card's own verified window when native; the generic validation
+    /// range otherwise (the row is hidden then, these are inert fallbacks).</summary>
+    public int TempSliderMinC => TempLimitNative ? BackendStatus!.TempLimitMinC : GpuOcValidation.TempMin;
+    public int TempSliderMaxC => TempLimitNative ? BackendStatus!.TempLimitMaxC : GpuOcValidation.TempMax;
+
+    /// <summary>Always-visible disclosure under the sliders: names exactly which axes Aurum applies on THIS
+    /// machine (offsets via NVAPI; power via NVAPI or ADLX; temp when verified) and which it never does
+    /// (voltage). Bound by the view so the non-applied sliders read as references, not dead controls.</summary>
+    public string GpuSlidersNote => GpuOcDisclosure.SlidersNote(
+        OffsetsNative, BackendStatus?.PowerBackend ?? GpuPowerBackendKind.None, TempLimitNative);
+
+    /// <summary>Power-limit row label: drops the "(via Afterburner)" suffix once the axis is verified-native,
+    /// so the label never claims less than the app actually does (nor more).</summary>
+    public string PowerLimitRowLabel => PowerLimitNative ? "Power limit" : "Power limit (via Afterburner)";
+
+    // These all derive from BackendStatus, so a status arriving after the async load must re-announce
+    // them — otherwise the view would keep the pre-detection wording/visibility forever.
+    partial void OnBackendStatusChanged(GpuOcBackendStatus? value)
+    {
+        OnPropertyChanged(nameof(GpuSlidersNote));
+        OnPropertyChanged(nameof(PowerLimitRowLabel));
+        OnPropertyChanged(nameof(PowerSliderMinPct));
+        OnPropertyChanged(nameof(PowerSliderMaxPct));
+        OnPropertyChanged(nameof(TempLimitNative));
+        OnPropertyChanged(nameof(TempSliderMinC));
+        OnPropertyChanged(nameof(TempSliderMaxC));
+    }
 
     public OverclockingViewModel(IHardwareService hardware, IGpuOcService ocService, ILicenseService license)
     {
@@ -89,6 +129,20 @@ public partial class OverclockingViewModel : ObservableObject
             GpuCoreOffsetMhz = current.CoreOffsetMhz;
             GpuMemOffsetMhz = current.MemoryOffsetMhz;
         }
+        // Power/temp prefill only from a verified-native read — otherwise the profile's 100/0 are
+        // placeholders, not measurements, and showing them as "current" would be a fabricated metric.
+        if (current is not null && PowerLimitNative)
+            GpuPowerLimitPct = current.PowerLimitPct;
+        else if (current is null && PowerLimitNative)
+            // The read failed but the backend is verified: fall back to the value captured at
+            // verification (a genuine measurement, on the right scale), NEVER the initial 100 — which
+            // on AMD is a wrong-scale placeholder that a blind Apply would clamp to MAX power.
+            GpuPowerLimitPct = BackendStatus!.PowerLimitDefaultPct;
+
+        if (current is not null && TempLimitNative && current.TempLimitC > 0)
+            GpuTempLimitC = current.TempLimitC;
+        else if (current is null && TempLimitNative)
+            GpuTempLimitC = BackendStatus!.TempLimitDefaultC;
     }
 
     [RelayCommand]
@@ -109,9 +163,9 @@ public partial class OverclockingViewModel : ObservableObject
             return;
         }
 
-        // Lead with exactly what the backend wrote (core/mem), then disclose any power/voltage the user set but
-        // that Aurum doesn't apply — so a successful apply never implies those two sliders took effect.
-        var ignored = GpuOcDisclosure.IgnoredAxesNote(profile);
+        // Lead with exactly what the backend wrote, then disclose any axis the user set but that Aurum doesn't
+        // apply on this card — so a successful apply never implies a slider took effect when it didn't.
+        var ignored = GpuOcDisclosure.IgnoredAxesNote(profile, PowerLimitNative);
         AutoOcStatus = ignored.Length == 0
             ? $"Appliqué : {result.Applied}"
             : $"Appliqué : {result.Applied} — {ignored}";
@@ -147,8 +201,26 @@ public partial class OverclockingViewModel : ObservableObject
     [RelayCommand]
     private async Task ResetOcAsync()
     {
-        GpuCoreOffsetMhz = 0; GpuMemOffsetMhz = 0; GpuPowerLimitPct = 100; GpuTempLimitC = 83; GpuTargetVoltageMv = 900;
+        // Run the native reset FIRST. On failure the card still holds the previous OC, so the sliders
+        // must keep showing it — mutating them up-front would make the page claim a reset that didn't
+        // happen and lose the values the user needs to see what's still applied.
         var r = await _ocService.ResetAsync();
-        AutoOcStatus = r.Success ? "Offsets GPU remis à zéro." : $"Erreur : {r.Error}";
+        if (!r.Success)
+        {
+            AutoOcStatus = $"Erreur : {r.Error}";
+            return;
+        }
+
+        // Only now reflect the reset on the sliders, matching what the service actually restored:
+        // card default power / startup AMD value, card default temp — else the generic UI defaults.
+        GpuCoreOffsetMhz = 0; GpuMemOffsetMhz = 0; GpuTargetVoltageMv = 900;
+        GpuPowerLimitPct = PowerLimitNative ? BackendStatus!.PowerLimitDefaultPct : 100;
+        GpuTempLimitC = TempLimitNative ? BackendStatus!.TempLimitDefaultC : 83;
+
+        // Surface the service's per-axis summary (what was actually restored on which axes) rather than
+        // a fixed "offsets remis à zéro" that would be wrong on AMD (no offsets) or hide power/temp reverts.
+        AutoOcStatus = string.IsNullOrEmpty(r.Applied)
+            ? "Réinitialisation GPU effectuée."
+            : $"Réinitialisé : {r.Applied}";
     }
 }
