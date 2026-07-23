@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using AurumTweaks.Models;
 using AurumTweaks.Services;
+using AurumTweaks.Services.Interop;
 using Xunit;
 
 namespace AurumTweaks.Tests;
@@ -28,8 +29,17 @@ public class GpuOcServiceTests
         public Task<HardwareInfo> DetectAsync() => Task.FromResult(_hw);
     }
 
+    // The real backends: preserve the existing tests' behavior exactly — the AMD GetStatus branch still
+    // performs a real read-only ADLX probe, and the out-of-range Apply tests still reject at validation
+    // before any native call, so the dev machine's GPU is never written.
     private static GpuOcService ServiceFor(GpuVendor vendor, string gpuName)
-        => new(new FakeHw(new HardwareInfo { GpuVendor = vendor, GpuPrimary = gpuName }));
+        => new(new FakeHw(new HardwareInfo { GpuVendor = vendor, GpuPrimary = gpuName }),
+               new NvApiBackend(), new AdlxBackend());
+
+    // Fully fake-backed service — no real GPU touched, so the multi-axis orchestration (partial-failure
+    // honesty, read-back decisions, vendor routing) can be driven deterministically.
+    private static GpuOcService FakeService(GpuVendor vendor, INvApi nv, IAdlxApi adlx, string name = "Test GPU")
+        => new(new FakeHw(new HardwareInfo { GpuVendor = vendor, GpuPrimary = name }), nv, adlx);
 
     private static GpuOcProfile Profile(int core = 0, int mem = 0, int power = 100, int temp = 83, int mv = 900)
         => new(core, mem, power, temp, mv);
@@ -108,17 +118,27 @@ public class GpuOcServiceTests
 
         Assert.Equal(GpuVendor.Amd, status.Vendor);
         Assert.NotNull(status.Message);
-        if (status.PowerLimitNative)
+        // The backend is available if ANY ADLX axis (power limit / GPU max freq / memory max freq) verified.
+        if (status.BackendAvailable)
         {
-            Assert.True(status.BackendAvailable);
-            Assert.Equal(GpuPowerBackendKind.AdlxDocumented, status.PowerBackend);
+            Assert.True(status.PowerLimitNative || status.GfxTuningNative || status.VramTuningNative);
             Assert.Contains("ADLX", status.Message!);
             Assert.Contains("relecture", status.Message!);
-            Assert.True(status.PowerLimitMinPct < status.PowerLimitMaxPct);
+            if (status.PowerLimitNative)
+            {
+                Assert.Equal(GpuPowerBackendKind.AdlxDocumented, status.PowerBackend);
+                Assert.True(status.PowerLimitMinPct < status.PowerLimitMaxPct);
+            }
+            if (status.GfxTuningNative)
+                Assert.True(status.GfxMaxFreqMinMhz < status.GfxMaxFreqMaxMhz);
+            if (status.VramTuningNative)
+                Assert.True(status.VramMaxFreqMinMhz < status.VramMaxFreqMaxMhz);
         }
         else
         {
-            Assert.False(status.BackendAvailable);
+            Assert.False(status.PowerLimitNative);
+            Assert.False(status.GfxTuningNative);
+            Assert.False(status.VramTuningNative);
             Assert.Contains("Adrenalin", status.Message!);
         }
     }
@@ -157,5 +177,142 @@ public class GpuOcServiceTests
 
         Assert.False(result.Success);
         Assert.NotNull(result.Error);
+    }
+
+    // ---- Fake-backed orchestration: partial-failure honesty, read decisions, vendor routing ----
+    // (These are the honesty-critical paths the review flagged as structurally untestable before the
+    //  INvApi/IAdlxApi seams existed — a regression flipping a partial failure to Success, or writing to
+    //  the wrong GPU on a hybrid rig, would ship green without them.)
+
+    private static AdlxGpuInfo AmdInfo(bool power = false, bool gfx = false, bool vram = false)
+        => new("Radeon Test", false, power, gfx, vram);
+
+    [Fact]
+    public async Task Apply_AmdPowerAppliedThenGfxFails_ReturnsFailure_NamingTheAppliedPowerAxis()
+    {
+        // The single most valuable missing test (per the review): power writes OK, gfx write fails →
+        // the result must be a FAILURE that still NAMES the power axis that already took effect.
+        var adlx = new FakeAdlxApi
+        {
+            Info = AmdInfo(power: true, gfx: true),
+            PowerReadable = true, PowerMin = -10, PowerMax = 15, PowerCur = 0,
+            GfxReadable = true, GfxMin = 500, GfxMax = 3000, GfxCur = 2500,
+            PowerWriteOk = true,
+            GfxWriteOk = false, GfxError = "driver refusé",
+        };
+        var svc = FakeService(GpuVendor.Amd, new FakeNvApi(), adlx);
+
+        // temp 83 is within the backend-agnostic ValidateFrequencies window (it isn't applied on AMD, but
+        // the profile must still be valid); the VM always sends a real temp default.
+        var result = await svc.ApplyAsync(new GpuOcProfile(0, 0, 10, 83, 0) { AmdMaxFreqMhz = 2700 });
+
+        Assert.False(result.Success);
+        Assert.Contains("Appliqué partiellement", result.Error);
+        Assert.Contains("power limit", result.Error);          // the axis that DID apply is named
+        Assert.Contains("fréquence GPU max NON appliquée", result.Error);
+        Assert.Equal(new[] { 10 }, adlx.PowerWrites);          // power really was written before the failure
+    }
+
+    [Fact]
+    public async Task Apply_NvidiaOffsetsAppliedThenPowerFails_ReturnsFailure_SayingOffsetsApplied()
+    {
+        var nv = new FakeNvApi
+        {
+            Present = true,
+            OffsetWriteOk = true,
+            PowerReadable = true, PMin = 90_000, PDef = 100_000, PMax = 120_000, PCur = 100_000,
+            PowerWriteOk = false, PowerError = "nv power refusé",
+        };
+        var svc = FakeService(GpuVendor.Nvidia, nv, new FakeAdlxApi());
+
+        var result = await svc.ApplyAsync(new GpuOcProfile(150, 1200, 110, 83, 0));
+
+        Assert.False(result.Success);
+        Assert.Contains("Offsets appliqués", result.Error);    // the offsets DID apply
+        Assert.Contains("power limit NON appliqué", result.Error);
+        Assert.Equal(new[] { (150, 1200) }, nv.OffsetWrites);  // offsets really written before the failure
+    }
+
+    [Fact]
+    public async Task ReadCurrent_Amd_OneVerifiedAxisFailsToRead_ReturnsNull_NotAHalfPopulatedProfile()
+    {
+        // The invariant the VM relies on to fall back to the captured default instead of a stray 0
+        // (which a blind apply would clamp to the window minimum = a silent downclock).
+        var adlx = new FakeAdlxApi
+        {
+            Info = AmdInfo(power: true, gfx: true),
+            PowerReadable = true, PowerMin = -10, PowerMax = 15, PowerCur = 5,
+            GfxReadable = true, GfxMin = 500, GfxMax = 3000, GfxCur = 2500,
+        };
+        var svc = FakeService(GpuVendor.Amd, new FakeNvApi(), adlx);
+        await svc.GetStatusAsync();          // primes verification for both axes (cached)
+
+        adlx.GfxReadable = false;            // now the gfx READ fails at read-time
+        var current = await svc.ReadCurrentAsync();
+
+        Assert.Null(current);               // any verified-axis read failure → whole profile null
+    }
+
+    [Fact]
+    public async Task ReadCurrent_Amd_AllVerifiedAxesReadCleanly_ReturnsThePopulatedProfile()
+    {
+        var adlx = new FakeAdlxApi
+        {
+            Info = AmdInfo(power: true, gfx: true, vram: true),
+            PowerReadable = true, PowerMin = -10, PowerMax = 15, PowerCur = 5,
+            GfxReadable = true, GfxMin = 500, GfxMax = 3000, GfxCur = 2650,
+            VramReadable = true, VramMin = 1000, VramMax = 2600, VramCur = 2400,
+        };
+        var svc = FakeService(GpuVendor.Amd, new FakeNvApi(), adlx);
+
+        var current = await svc.ReadCurrentAsync();
+
+        Assert.NotNull(current);
+        Assert.Equal(5, current!.PowerLimitPct);
+        Assert.Equal(2650, current.AmdMaxFreqMhz);
+        Assert.Equal(2400, current.AmdMaxVramFreqMhz);
+    }
+
+    [Fact]
+    public async Task Apply_AmdPrimaryWithNvidiaAlsoPresent_WritesToAmd_NeverTheNvidiaCard()
+    {
+        // Hybrid rig: hardware reports AMD primary, but an NVAPI-drivable NVIDIA card also exists.
+        // The vendor gate must route to ADLX and NEVER write the undisclosed NVIDIA GPU.
+        var nv = new FakeNvApi
+        {
+            Present = true, OffsetWriteOk = true, PowerWriteOk = true,
+            PowerReadable = true, PMin = 90_000, PDef = 100_000, PMax = 120_000, PCur = 100_000,
+        };
+        var adlx = new FakeAdlxApi
+        {
+            Info = AmdInfo(power: true),
+            PowerReadable = true, PowerMin = -10, PowerMax = 15, PowerCur = 0, PowerWriteOk = true,
+        };
+        var svc = FakeService(GpuVendor.Amd, nv, adlx);
+
+        var result = await svc.ApplyAsync(new GpuOcProfile(150, 1200, 10, 83, 0));
+
+        Assert.True(result.Success);
+        Assert.Empty(nv.OffsetWrites);                 // the NVIDIA card was NEVER touched
+        Assert.Empty(nv.PowerWrites);
+        Assert.Equal(new[] { 10 }, adlx.PowerWrites);  // the AMD axis WAS written
+        Assert.Contains("offsets core/mémoire (style NVIDIA) non appliqués sur AMD", result.Applied);
+    }
+
+    [Fact]
+    public async Task Reset_AmdPowerRestoreFails_ReturnsFailure_NotAFabricatedSuccess()
+    {
+        var adlx = new FakeAdlxApi
+        {
+            Info = AmdInfo(power: true),
+            PowerReadable = true, PowerMin = -10, PowerMax = 15, PowerCur = 5,
+            PowerWriteOk = false, PowerError = "restore refusé",
+        };
+        var svc = FakeService(GpuVendor.Amd, new FakeNvApi(), adlx);
+
+        var result = await svc.ResetAsync();
+
+        Assert.False(result.Success);
+        Assert.Contains("NON restauré", result.Error);
     }
 }

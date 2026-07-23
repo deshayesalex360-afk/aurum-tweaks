@@ -12,12 +12,13 @@ namespace AurumTweaks.Services;
 /// to the card's allowed V/F range, non-persistent across reboot), plus the <b>power limit</b> and
 /// <b>temperature target</b> — each ONLY on cards where its community-documented layout passed an
 /// on-card read verification. On AMD it is backed by <see cref="Interop.AdlxApi"/> (ADLX, AMD's
-/// official documented API): <b>power limit</b> only, gated by ADLX's own per-GPU support flag;
-/// offsets are honestly referred to Adrenalin. The <b>power-limit and temperature</b> writes are
-/// confirmed by an immediate read-back before success is reported; the core/memory offset write is a
-/// driver-clamped frequency delta (the driver bounds it to the card's V/F range), not a read-back-
-/// confirmed value. Voltage is intentionally <i>never</i> applied. Nothing here ships a kernel driver,
-/// touches the vBIOS, or unlocks voltage.
+/// official documented API): <b>power limit</b>, <b>GPU max frequency</b> and <b>memory max frequency</b>
+/// (the RDNA+ Tuning2 axes), each gated by ADLX's own per-GPU support flag; the NVIDIA-style offsets are
+/// honestly referred to Adrenalin. Every native power/temp/frequency write is
+/// confirmed by an immediate read-back before success is reported; the NVIDIA core/memory offset write
+/// is a driver-clamped frequency delta (bounded to the card's V/F range), not a read-back-confirmed
+/// value. Voltage is intentionally <i>never</i> applied. Nothing here ships a kernel driver, touches
+/// the vBIOS, or unlocks voltage.
 /// </summary>
 public interface IGpuOcService
 {
@@ -63,7 +64,15 @@ public sealed record GpuOcBackendStatus(
     bool TempLimitNative = false,
     int TempLimitMinC = 0,
     int TempLimitMaxC = 0,
-    int TempLimitDefaultC = 0)
+    int TempLimitDefaultC = 0,
+    bool GfxTuningNative = false,
+    int GfxMaxFreqMinMhz = 0,
+    int GfxMaxFreqMaxMhz = 0,
+    int GfxMaxFreqDefaultMhz = 0,
+    bool VramTuningNative = false,
+    int VramMaxFreqMinMhz = 0,
+    int VramMaxFreqMaxMhz = 0,
+    int VramMaxFreqDefaultMhz = 0)
 {
     /// <summary>Computed, single-source-of-truth: any verified backend drives the power axis.</summary>
     public bool PowerLimitNative => PowerBackend != GpuPowerBackendKind.None;
@@ -74,7 +83,16 @@ public sealed record GpuOcProfile(
     int MemoryOffsetMhz,
     int PowerLimitPct,
     int TempLimitC,
-    int TargetVoltageMv);
+    int TargetVoltageMv)
+{
+    /// <summary>AMD GPU max frequency (ADLX Tuning2, driver scale). Non-positional so every existing
+    /// 5-arg construction is unchanged; 0 = "not set / no change" (the VM only sends a real value on a
+    /// verified AMD card, prefilled from the driver read).</summary>
+    public int AmdMaxFreqMhz { get; init; }
+
+    /// <summary>AMD max memory frequency (ADLX VRAM Tuning2, driver scale). Same neutral-0 contract.</summary>
+    public int AmdMaxVramFreqMhz { get; init; }
+}
 
 /// <summary><see cref="Applied"/> is a short human summary of what was actually written (e.g. "core +150 MHz · mém +1200 MHz").</summary>
 public sealed record GpuOcApplyResult(bool Success, string? Error = null, string? Applied = null);
@@ -167,13 +185,17 @@ public static class GpuPowerLimit
         IsPlausibleWindow(minPcm, defPcm, maxPcm) && currentPcm >= minPcm && currentPcm <= maxPcm
         && (int)Math.Ceiling(minPcm / (double)PcmPerPercent) <= (int)Math.Floor(maxPcm / (double)PcmPerPercent);
 
-    /// <summary>Clamp a requested % into the card's own window (PCM bounds from GetInfo), conservatively
-    /// rounded inward so the clamped value is always genuinely inside the window. Safe only because
-    /// <see cref="IsCoherent"/> guarantees ceil(min) ≤ floor(max) before this axis is ever enabled.</summary>
+    /// <summary>The card's integer-% window bounds, rounded INWARD (ceil the min, floor the max) so every
+    /// value they span is genuinely applyable. Single source of truth for BOTH the displayed slider bounds
+    /// and the apply-time clamp — using <see cref="FromPcm"/> (Math.Round) for the displayed min would put
+    /// a tick below the card's true floor that always gets bumped up.</summary>
+    public static int CardMinPct(int minPcm) => (int)Math.Ceiling(minPcm / (double)PcmPerPercent);
+    public static int CardMaxPct(int maxPcm) => (int)Math.Floor(maxPcm / (double)PcmPerPercent);
+
+    /// <summary>Clamp a requested % into the card's own window. Safe only because <see cref="IsCoherent"/>
+    /// guarantees ceil(min) ≤ floor(max) before this axis is ever enabled.</summary>
     public static int ClampToCardPct(int requestedPct, int minPcm, int maxPcm) =>
-        Math.Clamp(requestedPct,
-            (int)Math.Ceiling(minPcm / (double)PcmPerPercent),
-            (int)Math.Floor(maxPcm / (double)PcmPerPercent));
+        Math.Clamp(requestedPct, CardMinPct(minPcm), CardMaxPct(maxPcm));
 }
 
 /// <summary>
@@ -200,6 +222,34 @@ public static class AdlxPowerRange
     {
         int v = Math.Clamp(requestedPct, minPct, maxPct);
         if (stepPct > 1) v = minPct + (v - minPct) / stepPct * stepPct;
+        return v;
+    }
+}
+
+/// <summary>
+/// Pure gates for the AMD ADLX GPU max-frequency window (MHz). Same trust model as the other backends:
+/// the documented ADLX read must still pass a coherence gate before the write path is enabled. Values
+/// are the driver's own — an absolute clock on pre-Navi4, an offset from base on Navi4+ — spanning a
+/// wider envelope than the power scale (absolute clocks reach a few thousand MHz; offsets can be
+/// negative). Aurum round-trips inside the reported window and never re-interprets the scale.
+/// Side-effect-free → unit-testable.
+/// </summary>
+public static class GpuGfxRange
+{
+    /// <summary>Ordered window inside a credible frequency envelope (covers both absolute clocks and offsets).</summary>
+    public static bool IsPlausible(int minMhz, int maxMhz, int stepMhz) =>
+        minMhz < maxMhz && minMhz >= -2000 && maxMhz <= 6000
+        && stepMhz >= 0 && stepMhz <= maxMhz - minMhz;
+
+    /// <summary>Plausible window AND the current value inside it — the gate enabling the native write path.</summary>
+    public static bool IsCoherent(int minMhz, int maxMhz, int stepMhz, int currentMhz) =>
+        IsPlausible(minMhz, maxMhz, stepMhz) && currentMhz >= minMhz && currentMhz <= maxMhz;
+
+    /// <summary>Clamp a requested MHz into the driver window, aligned down onto its step grid (anchored at min).</summary>
+    public static int Clamp(int requestedMhz, int minMhz, int maxMhz, int stepMhz)
+    {
+        int v = Math.Clamp(requestedMhz, minMhz, maxMhz);
+        if (stepMhz > 1) v = minMhz + (v - minMhz) / stepMhz * stepMhz;
         return v;
     }
 }
@@ -234,12 +284,15 @@ public static class GpuThermalLimit
         IsPlausibleWindow(minRaw, defRaw, maxRaw) && currentRaw >= minRaw && currentRaw <= maxRaw
         && (int)Math.Ceiling(minRaw / (double)RawPerDegree) <= (int)Math.Floor(maxRaw / (double)RawPerDegree);
 
+    /// <summary>The card's integer-°C window bounds, rounded INWARD — single source of truth for both the
+    /// displayed slider bounds and the clamp (see <see cref="GpuPowerLimit.CardMinPct"/> for the why).</summary>
+    public static int CardMinC(int minRaw) => (int)Math.Ceiling(minRaw / (double)RawPerDegree);
+    public static int CardMaxC(int maxRaw) => (int)Math.Floor(maxRaw / (double)RawPerDegree);
+
     /// <summary>Clamp a requested °C into the card's own window (raw bounds from GetInfo), rounded inward.
     /// Safe only because <see cref="IsCoherent"/> guarantees ceil(min) ≤ floor(max) before enablement.</summary>
     public static int ClampToCardC(int requestedC, int minRaw, int maxRaw) =>
-        Math.Clamp(requestedC,
-            (int)Math.Ceiling(minRaw / (double)RawPerDegree),
-            (int)Math.Floor(maxRaw / (double)RawPerDegree));
+        Math.Clamp(requestedC, CardMinC(minRaw), CardMaxC(maxRaw));
 }
 
 /// <summary>
@@ -261,21 +314,24 @@ public static class GpuOcDisclosure
     /// NVAPI caveat says "undocumented"; ADLX is AMD's documented API and must not carry that caveat). The
     /// temperature clause only ever claims (never disclaims): the temp slider row is hidden entirely when
     /// unverified, so there is no visible control to disown.</summary>
-    public static string SlidersNote(bool offsetsNative, GpuPowerBackendKind power, bool tempNative)
+    public static string SlidersNote(bool offsetsNative, GpuPowerBackendKind power, bool tempNative,
+                                     bool gfxNative = false, bool vramNative = false)
     {
         bool powerNative = power != GpuPowerBackendKind.None;
 
         var applied = new List<string>();
         if (offsetsNative) applied.Add("les offsets core et mémoire");
         if (powerNative) applied.Add("le power limit");
+        if (gfxNative) applied.Add("la fréquence GPU max");
+        if (vramNative) applied.Add("la fréquence mémoire max");
         if (tempNative) applied.Add("la cible de température");
         if (applied.Count == 0)
             return "Aucun backend GPU natif vérifié sur cette machine — règle l'overclocking dans "
                  + "MSI Afterburner (NVIDIA) ou Adrenalin (AMD).";
 
         // The caveat is built compositionally so it can only ever attribute read-back to the axes that
-        // genuinely have it (power/temp — NOT the offsets, whose write is driver-clamped, not read-back
-        // confirmed) and can never paint the documented ADLX API as an undocumented NVAPI interface.
+        // genuinely have it (power/temp/gfx — NOT the NVIDIA offsets, whose write is driver-clamped, not
+        // read-back confirmed) and can never paint the documented ADLX API as an undocumented NVAPI one.
         var clauses = new List<string>();
 
         // NVAPI community axes (power when driven by NVAPI, temperature) — read-back confirmed AND
@@ -293,11 +349,21 @@ public static class GpuOcDisclosure
                   + "documentées par NVIDIA mais ce sont celles qu'utilisent les outils d'overclocking");
         }
 
-        // ADLX power (AMD's official documented API) — read-back confirmed, never labelled undocumented.
-        if (power == GpuPowerBackendKind.AdlxDocumented)
-            clauses.Add("ADLX (API AMD officielle) : l'écriture power limit est confirmée par relecture");
+        // ADLX axes (AMD's official documented API: power limit / GPU max freq / memory max freq) —
+        // read-back confirmed, never labelled undocumented.
+        var adlxAxes = new List<string>();
+        if (power == GpuPowerBackendKind.AdlxDocumented) adlxAxes.Add("power limit");
+        if (gfxNative) adlxAxes.Add("fréquence GPU max");
+        if (vramNative) adlxAxes.Add("fréquence mémoire max");
+        if (adlxAxes.Count > 0)
+        {
+            string axes = string.Join(" / ", adlxAxes);
+            clauses.Add(adlxAxes.Count == 1
+                ? $"ADLX (API AMD officielle) : l'écriture {axes} est confirmée par relecture"
+                : $"ADLX (API AMD officielle) : les écritures {axes} sont confirmées par relecture");
+        }
 
-        // Offsets are applied via NVAPI too, but as driver-clamped frequency deltas — no read-back claim.
+        // NVIDIA offsets are applied via NVAPI too, but as driver-clamped deltas — no read-back claim.
         string caveat = clauses.Count > 0 ? $" ({string.Join(" ; ", clauses)})." : " (NVAPI).";
 
         var referred = new List<string>();
@@ -336,6 +402,8 @@ public static class GpuOcDisclosure
 public sealed class GpuOcService : IGpuOcService
 {
     private readonly IHardwareService _hardware;
+    private readonly INvApi _nv;
+    private readonly IAdlxApi _adlx;
 
     private bool _nvProbed;
     private IntPtr _nvGpu = IntPtr.Zero;
@@ -361,9 +429,25 @@ public sealed class GpuOcService : IGpuOcService
     private int _adlxStepPct;
     private int _adlxInitialPct;   // value read at Aurum startup — the honest AMD reset target (ADLX has no default getter)
 
-    public GpuOcService(IHardwareService hardware)
+    private bool _gfxProbed;
+    private bool _gfxOk;
+    private int _gfxMinMhz;
+    private int _gfxMaxMhz;
+    private int _gfxStepMhz;
+    private int _gfxInitialMhz;    // GPU max freq read at startup — the honest reset target (ADLX has no default getter)
+
+    private bool _vramProbed;
+    private bool _vramOk;
+    private int _vramMinMhz;
+    private int _vramMaxMhz;
+    private int _vramStepMhz;
+    private int _vramInitialMhz;   // memory max freq read at startup — the honest reset target
+
+    public GpuOcService(IHardwareService hardware, INvApi nv, IAdlxApi adlx)
     {
         _hardware = hardware;
+        _nv = nv;
+        _adlx = adlx;
     }
 
     /// <summary>Lazily resolve (and cache) the first NVAPI-drivable NVIDIA GPU handle. Never throws.</summary>
@@ -371,7 +455,7 @@ public sealed class GpuOcService : IGpuOcService
     {
         if (_nvProbed) return _nvGpu != IntPtr.Zero;
         _nvProbed = true;
-        if (NvApi.TryGetFirstGpu(out var gpu, out var name) && gpu != IntPtr.Zero)
+        if (_nv.TryGetFirstGpu(out var gpu, out var name) && gpu != IntPtr.Zero)
         {
             _nvGpu = gpu;
             _nvName = name;
@@ -390,8 +474,8 @@ public sealed class GpuOcService : IGpuOcService
     {
         if (_pwrProbed) return _pwrOk;
         _pwrProbed = true;
-        _pwrOk = NvApi.TryReadPowerInfo(_nvGpu, out _pwrMinPcm, out _pwrDefPcm, out _pwrMaxPcm)
-              && NvApi.TryReadPowerTarget(_nvGpu, out int currentPcm)
+        _pwrOk = _nv.TryReadPowerInfo(_nvGpu, out _pwrMinPcm, out _pwrDefPcm, out _pwrMaxPcm)
+              && _nv.TryReadPowerTarget(_nvGpu, out int currentPcm)
               && GpuPowerLimit.IsCoherent(_pwrMinPcm, _pwrDefPcm, _pwrMaxPcm, currentPcm);
         return _pwrOk;
     }
@@ -402,8 +486,8 @@ public sealed class GpuOcService : IGpuOcService
     {
         if (_thermProbed) return _thermOk;
         _thermProbed = true;
-        _thermOk = NvApi.TryReadThermalInfo(_nvGpu, out _thermMinRaw, out _thermDefRaw, out _thermMaxRaw)
-                && NvApi.TryReadThermalLimit(_nvGpu, out int currentRaw)
+        _thermOk = _nv.TryReadThermalInfo(_nvGpu, out _thermMinRaw, out _thermDefRaw, out _thermMaxRaw)
+                && _nv.TryReadThermalLimit(_nvGpu, out int currentRaw)
                 && GpuThermalLimit.IsCoherent(_thermMinRaw, _thermDefRaw, _thermMaxRaw, currentRaw);
         return _thermOk;
     }
@@ -418,11 +502,39 @@ public sealed class GpuOcService : IGpuOcService
     {
         if (_adlxProbed) return _adlxOk;
         _adlxProbed = true;
-        _adlxOk = AdlxApi.TryGetFirstGpuInfo(out var info)
+        _adlxOk = _adlx.TryGetFirstGpuInfo(out var info)
                && info.ManualPowerTuningSupported
-               && AdlxApi.TryReadPowerLimit(out _adlxInitialPct, out _adlxMinPct, out _adlxMaxPct, out _adlxStepPct);
+               && _adlx.TryReadPowerLimit(out _adlxInitialPct, out _adlxMinPct, out _adlxMaxPct, out _adlxStepPct);
         if (_adlxOk) _adlxInfo = info;
         return _adlxOk;
+    }
+
+    /// <summary>
+    /// Lazily verify (once) the AMD ADLX GPU max-frequency path: ADLX must report
+    /// IsSupportedManualGFXTuning for the GPU (its own gate), the RDNA+ Tuning2 interface must be
+    /// acquirable, and the window + current value must read coherent. Startup value captured as the
+    /// honest reset target. Read-only — never writes during verification.
+    /// </summary>
+    private bool EnsureAmdGfxVerified()
+    {
+        if (_gfxProbed) return _gfxOk;
+        _gfxProbed = true;
+        _gfxOk = _adlx.TryGetFirstGpuInfo(out var info)
+              && info.ManualGfxTuningSupported
+              && _adlx.TryReadGfxMaxFreq(out _gfxInitialMhz, out _gfxMinMhz, out _gfxMaxMhz, out _gfxStepMhz);
+        return _gfxOk;
+    }
+
+    /// <summary>Same on-card verification contract as <see cref="EnsureAmdGfxVerified"/>, for the AMD
+    /// max memory frequency (ADLX VRAM Tuning2). Read-only — never writes during verification.</summary>
+    private bool EnsureAmdVramVerified()
+    {
+        if (_vramProbed) return _vramOk;
+        _vramProbed = true;
+        _vramOk = _adlx.TryGetFirstGpuInfo(out var info)
+               && info.ManualVramTuningSupported
+               && _adlx.TryReadVramMaxFreq(out _vramInitialMhz, out _vramMinMhz, out _vramMaxMhz, out _vramStepMhz);
+        return _vramOk;
     }
 
     public async Task<GpuOcBackendStatus> GetStatusAsync()
@@ -439,21 +551,33 @@ public sealed class GpuOcService : IGpuOcService
                     var axes = "offsets core/mémoire (P0)";
                     if (pwr) axes += ", power limit";
                     if (therm) axes += ", cible température";
+
+                    // The undocumented-interface + read-back clause names ONLY the axes that actually
+                    // verified (a fixed "power/température" string would overclaim the inactive one).
+                    var nvVerified = new List<string>();
+                    if (pwr) nvVerified.Add("power limit");
+                    if (therm) nvVerified.Add("température");
+                    string readBackClause = nvVerified.Count switch
+                    {
+                        0 => "",
+                        1 => $"Interface {nvVerified[0]} non documentée par NVIDIA mais utilisée par les outils "
+                           + "d'OC ; chaque écriture est confirmée par relecture. ",
+                        _ => $"Interfaces {string.Join(" / ", nvVerified)} non documentées par NVIDIA mais utilisées "
+                           + "par les outils d'OC ; chaque écriture est confirmée par relecture. ",
+                    };
+
                     string message =
                         $"NVAPI actif — {axes} applicables nativement. Offsets bornés par le driver, réglages "
                         + "non-persistants (remis à zéro au redémarrage), aucun déverrouillage de voltage. "
                         + (pwr
-                            ? $"Power limit vérifié en lecture (fenêtre {GpuPowerLimit.FromPcm(_pwrMinPcm)}–"
-                              + $"{GpuPowerLimit.FromPcm(_pwrMaxPcm)} %, défaut {GpuPowerLimit.FromPcm(_pwrDefPcm)} %). "
+                            ? $"Power limit vérifié en lecture (fenêtre {GpuPowerLimit.CardMinPct(_pwrMinPcm)}–"
+                              + $"{GpuPowerLimit.CardMaxPct(_pwrMaxPcm)} %, défaut {GpuPowerLimit.FromPcm(_pwrDefPcm)} %). "
                             : "Power limit : lecture non vérifiée sur cette carte → non appliqué (utiliser Afterburner). ")
                         + (therm
-                            ? $"Cible température vérifiée en lecture (fenêtre {GpuThermalLimit.FromRaw(_thermMinRaw)}–"
-                              + $"{GpuThermalLimit.FromRaw(_thermMaxRaw)} °C, défaut {GpuThermalLimit.FromRaw(_thermDefRaw)} °C). "
+                            ? $"Cible température vérifiée en lecture (fenêtre {GpuThermalLimit.CardMinC(_thermMinRaw)}–"
+                              + $"{GpuThermalLimit.CardMaxC(_thermMaxRaw)} °C, défaut {GpuThermalLimit.FromRaw(_thermDefRaw)} °C). "
                             : "Cible température : lecture non vérifiée → non appliquée. ")
-                        + (pwr || therm
-                            ? "Interfaces power/température non documentées par NVIDIA mais utilisées par les outils "
-                              + "d'OC ; chaque écriture est confirmée par relecture. "
-                            : "")
+                        + readBackClause
                         + "Voltage : jamais appliqué par Aurum.";
 
                     return new GpuOcBackendStatus(
@@ -463,12 +587,12 @@ public sealed class GpuOcService : IGpuOcService
                         BackendVersion: hw.GpuDriverVersion,
                         Message: message,
                         PowerBackend: pwr ? GpuPowerBackendKind.NvapiCommunity : GpuPowerBackendKind.None,
-                        PowerLimitMinPct: pwr ? GpuPowerLimit.FromPcm(_pwrMinPcm) : 0,
-                        PowerLimitMaxPct: pwr ? GpuPowerLimit.FromPcm(_pwrMaxPcm) : 0,
+                        PowerLimitMinPct: pwr ? GpuPowerLimit.CardMinPct(_pwrMinPcm) : 0,
+                        PowerLimitMaxPct: pwr ? GpuPowerLimit.CardMaxPct(_pwrMaxPcm) : 0,
                         PowerLimitDefaultPct: pwr ? GpuPowerLimit.FromPcm(_pwrDefPcm) : 100,
                         TempLimitNative: therm,
-                        TempLimitMinC: therm ? GpuThermalLimit.FromRaw(_thermMinRaw) : 0,
-                        TempLimitMaxC: therm ? GpuThermalLimit.FromRaw(_thermMaxRaw) : 0,
+                        TempLimitMinC: therm ? GpuThermalLimit.CardMinC(_thermMinRaw) : 0,
+                        TempLimitMaxC: therm ? GpuThermalLimit.CardMaxC(_thermMaxRaw) : 0,
                         TempLimitDefaultC: therm ? GpuThermalLimit.FromRaw(_thermDefRaw) : 0);
                 }
                 return new GpuOcBackendStatus(
@@ -479,44 +603,74 @@ public sealed class GpuOcService : IGpuOcService
 
             case GpuVendor.Amd:
             {
-                if (EnsureAmdPowerVerified())
+                bool amdPwr = EnsureAmdPowerVerified();
+                bool amdGfx = EnsureAmdGfxVerified();
+                bool amdVram = EnsureAmdVramVerified();
+                bool adlxUp = _adlx.TryGetFirstGpuInfo(out var amdInfo);
+                string amdName = adlxUp && !string.IsNullOrEmpty(amdInfo.Name) ? amdInfo.Name : hw.GpuPrimary;
+
+                if (amdPwr || amdGfx || amdVram)
                 {
+                    var natives = new List<string>();
+                    if (amdPwr) natives.Add("power limit");
+                    if (amdGfx) natives.Add("fréquence GPU max");
+                    if (amdVram) natives.Add("fréquence mémoire max");
+                    string message =
+                        $"ADLX actif (API AMD officielle) — {string.Join(", ", natives)} applicable(s) nativement. "
+                        + (amdPwr
+                            ? $"Power limit : fenêtre driver {_adlxMinPct} à {_adlxMaxPct} (échelle Adrenalin), "
+                              + $"lancement {_adlxInitialPct}. "
+                            : "")
+                        + (amdGfx
+                            ? $"Fréquence GPU max : fenêtre {_gfxMinMhz} à {_gfxMaxMhz} MHz (échelle driver), "
+                              + $"lancement {_gfxInitialMhz} MHz. "
+                            : "")
+                        + (amdVram
+                            ? $"Fréquence mémoire max : fenêtre {_vramMinMhz} à {_vramMaxMhz} MHz (échelle driver), "
+                              + $"lancement {_vramInitialMhz} MHz. "
+                            : "")
+                        + "Chaque écriture est confirmée par relecture ; « Réinitialiser » restaure les valeurs "
+                        + "de lancement (le réglage ADLX peut persister au redémarrage, comme dans Adrenalin). "
+                        + (amdVram ? "" : "Fréquence mémoire : non appliquée → Adrenalin. ")
+                        + "Voltage : jamais appliqué par Aurum.";
+
                     return new GpuOcBackendStatus(
-                        GpuVendor.Amd,
-                        string.IsNullOrEmpty(_adlxInfo!.Name) ? hw.GpuPrimary : _adlxInfo.Name,
+                        GpuVendor.Amd, amdName,
                         BackendAvailable: true,
                         BackendVersion: hw.GpuDriverVersion,
-                        Message: "ADLX actif (API AMD officielle) — power limit applicable nativement : fenêtre "
-                               + $"driver {_adlxMinPct} à {_adlxMaxPct} (échelle Adrenalin), valeur au lancement "
-                               + $"{_adlxInitialPct}. Chaque écriture est confirmée par relecture. « Réinitialiser » "
-                               + "restaure cette valeur de lancement (le réglage ADLX peut persister au redémarrage, "
-                               + "comme dans Adrenalin). Offsets core/mémoire : non appliqués par Aurum sur AMD → "
-                               + "Adrenalin (Performances › Tuning). Voltage : jamais appliqué par Aurum.",
-                        PowerBackend: GpuPowerBackendKind.AdlxDocumented,
-                        PowerLimitMinPct: _adlxMinPct,
-                        PowerLimitMaxPct: _adlxMaxPct,
-                        PowerLimitDefaultPct: _adlxInitialPct);
+                        Message: message,
+                        PowerBackend: amdPwr ? GpuPowerBackendKind.AdlxDocumented : GpuPowerBackendKind.None,
+                        PowerLimitMinPct: amdPwr ? _adlxMinPct : 0,
+                        PowerLimitMaxPct: amdPwr ? _adlxMaxPct : 0,
+                        PowerLimitDefaultPct: amdPwr ? _adlxInitialPct : 100,
+                        GfxTuningNative: amdGfx,
+                        GfxMaxFreqMinMhz: amdGfx ? _gfxMinMhz : 0,
+                        GfxMaxFreqMaxMhz: amdGfx ? _gfxMaxMhz : 0,
+                        GfxMaxFreqDefaultMhz: amdGfx ? _gfxInitialMhz : 0,
+                        VramTuningNative: amdVram,
+                        VramMaxFreqMinMhz: amdVram ? _vramMinMhz : 0,
+                        VramMaxFreqMaxMhz: amdVram ? _vramMaxMhz : 0,
+                        VramMaxFreqDefaultMhz: amdVram ? _vramInitialMhz : 0);
                 }
 
                 // Honest reason, branched on WHICH stage of verification actually failed — never
-                // blaming AMD's support flag when it was really the window read that was unusable.
-                bool adlxUp = AdlxApi.TryGetFirstGpuInfo(out var amdInfo);
+                // blaming AMD's support flags when it was really the window read that was unusable.
                 string reason;
                 if (!adlxUp)
                     reason = "OC AMD non implémenté nativement — ADLX indisponible (driver Adrenalin absent ou "
                            + "trop ancien). Utiliser AMD Adrenalin (Performances › Tuning).";
-                else if (!amdInfo.ManualPowerTuningSupported)
+                else if (!amdInfo.ManualPowerTuningSupported && !amdInfo.ManualGfxTuningSupported && !amdInfo.ManualVramTuningSupported)
                     reason = $"ADLX initialisé (API AMD officielle) mais ce GPU{(amdInfo.IsIntegrated ? " intégré" : string.Empty)} "
-                           + "ne permet pas le tuning manuel du power limit (IsSupportedManualPowerTuning = non). "
+                           + "ne déclare ni le tuning power limit ni le tuning fréquence (IsSupported* = non). "
                            + "OC AMD → Adrenalin (Performances › Tuning).";
                 else
-                    // Flag said yes but the window/current read was incoherent — honest about the real cause.
-                    reason = "ADLX initialisé et ce GPU déclare supporter le tuning, mais la fenêtre du power "
-                           + "limit lue via le driver est incohérente → non appliqué par prudence. "
-                           + "OC AMD → Adrenalin (Performances › Tuning).";
+                    // A support flag said yes but the corresponding window read was incoherent (or the
+                    // RDNA+ Tuning2 interface was unavailable) — honest about the real cause.
+                    reason = "ADLX initialisé et ce GPU déclare supporter le tuning, mais la ou les fenêtres lues "
+                           + "via le driver sont incohérentes (ou l'interface RDNA+ est absente) → non appliqué "
+                           + "par prudence. OC AMD → Adrenalin (Performances › Tuning).";
                 return new GpuOcBackendStatus(
-                    GpuVendor.Amd,
-                    adlxUp && !string.IsNullOrEmpty(amdInfo.Name) ? amdInfo.Name : hw.GpuPrimary,
+                    GpuVendor.Amd, amdName,
                     BackendAvailable: false,
                     BackendVersion: hw.GpuDriverVersion,
                     Message: reason);
@@ -553,7 +707,7 @@ public sealed class GpuOcService : IGpuOcService
 
             // Defense-in-depth clamp, then write the core/memory offsets.
             var clamped = GpuOcValidation.Clamp(profile);
-            if (!NvApi.TrySetOffsets(_nvGpu, clamped.CoreOffsetMhz, clamped.MemoryOffsetMhz, out var nvError))
+            if (!_nv.TrySetOffsets(_nvGpu, clamped.CoreOffsetMhz, clamped.MemoryOffsetMhz, out var nvError))
                 return new GpuOcApplyResult(false, nvError);
 
             var applied = $"core {clamped.CoreOffsetMhz:+#;-#;0} MHz · mém {clamped.MemoryOffsetMhz:+#;-#;0} MHz";
@@ -563,7 +717,7 @@ public sealed class GpuOcService : IGpuOcService
             if (EnsurePowerVerified())
             {
                 int targetPct = GpuPowerLimit.ClampToCardPct(clamped.PowerLimitPct, _pwrMinPcm, _pwrMaxPcm);
-                if (!NvApi.TrySetPowerTarget(_nvGpu, GpuPowerLimit.ToPcm(targetPct), out var pwrError))
+                if (!_nv.TrySetPowerTarget(_nvGpu, GpuPowerLimit.ToPcm(targetPct), out var pwrError))
                     // Partial-state honesty: the offsets DID apply — say so inside the failure message
                     // rather than pretending an all-or-nothing outcome.
                     return new GpuOcApplyResult(false,
@@ -578,7 +732,7 @@ public sealed class GpuOcService : IGpuOcService
             if (EnsureThermalVerified())
             {
                 int targetC = GpuThermalLimit.ClampToCardC(clamped.TempLimitC, _thermMinRaw, _thermMaxRaw);
-                if (!NvApi.TrySetThermalLimit(_nvGpu, GpuThermalLimit.ToRaw(targetC), out var thermError))
+                if (!_nv.TrySetThermalLimit(_nvGpu, GpuThermalLimit.ToRaw(targetC), out var thermError))
                     return new GpuOcApplyResult(false,
                         $"Appliqué partiellement ({applied}) mais cible température NON appliquée : {thermError}");
 
@@ -591,19 +745,52 @@ public sealed class GpuOcService : IGpuOcService
             return new GpuOcApplyResult(true, null, applied);
         }
 
-        // 3. AMD path: power limit only (ADLX, AMD's documented API) — offsets are honestly not applied.
-        if (vendor == GpuVendor.Amd && EnsureAmdPowerVerified())
+        // 3. AMD path: power limit and/or GPU/memory max frequency via ADLX (AMD's documented API), each
+        //    only where its on-card verification passed. NVIDIA-style core/mem offsets aren't applied here.
+        if (vendor == GpuVendor.Amd && (EnsureAmdPowerVerified() || EnsureAmdGfxVerified() || EnsureAmdVramVerified()))
         {
-            int target = AdlxPowerRange.Clamp(profile.PowerLimitPct, _adlxMinPct, _adlxMaxPct, _adlxStepPct);
-            if (!AdlxApi.TrySetPowerLimit(target, out var adlxError))
-                return new GpuOcApplyResult(false, $"Power limit AMD NON appliqué : {adlxError}");
+            var parts = new List<string>();
 
-            var appliedAmd = target == profile.PowerLimitPct
-                ? $"power limit {target} (ADLX, confirmé par relecture)"
-                : $"power limit {profile.PowerLimitPct} demandé → {target} (borné par le driver, confirmé)";
-            // The core/mem sliders exist on the page — a successful AMD apply must say they did nothing.
+            if (EnsureAmdPowerVerified())
+            {
+                int target = AdlxPowerRange.Clamp(profile.PowerLimitPct, _adlxMinPct, _adlxMaxPct, _adlxStepPct);
+                if (!_adlx.TrySetPowerLimit(target, out var powerError))
+                    return new GpuOcApplyResult(false, $"Power limit AMD NON appliqué : {powerError}");
+                parts.Add(target == profile.PowerLimitPct
+                    ? $"power limit {target} (ADLX, confirmé par relecture)"
+                    : $"power limit {profile.PowerLimitPct} demandé → {target} (borné par le driver, confirmé)");
+            }
+
+            if (EnsureAmdGfxVerified())
+            {
+                int target = GpuGfxRange.Clamp(profile.AmdMaxFreqMhz, _gfxMinMhz, _gfxMaxMhz, _gfxStepMhz);
+                if (!_adlx.TrySetGfxMaxFreq(target, out var gfxError))
+                    // Partial-state honesty: whatever already applied (e.g. power) is named in the failure.
+                    return new GpuOcApplyResult(false, parts.Count > 0
+                        ? $"Appliqué partiellement ({string.Join(" · ", parts)}) mais fréquence GPU max NON appliquée : {gfxError}"
+                        : $"Fréquence GPU max AMD NON appliquée : {gfxError}");
+                parts.Add(target == profile.AmdMaxFreqMhz
+                    ? $"fréquence GPU max {target} MHz (ADLX, confirmé par relecture)"
+                    : $"fréquence GPU max {profile.AmdMaxFreqMhz} MHz demandée → {target} MHz (bornée par le driver, confirmée)");
+            }
+
+            if (EnsureAmdVramVerified())
+            {
+                int target = GpuGfxRange.Clamp(profile.AmdMaxVramFreqMhz, _vramMinMhz, _vramMaxMhz, _vramStepMhz);
+                if (!_adlx.TrySetVramMaxFreq(target, out var vramError))
+                    return new GpuOcApplyResult(false, parts.Count > 0
+                        ? $"Appliqué partiellement ({string.Join(" · ", parts)}) mais fréquence mémoire NON appliquée : {vramError}"
+                        : $"Fréquence mémoire AMD NON appliquée : {vramError}");
+                parts.Add(target == profile.AmdMaxVramFreqMhz
+                    ? $"fréquence mémoire max {target} MHz (ADLX, confirmé par relecture)"
+                    : $"fréquence mémoire max {profile.AmdMaxVramFreqMhz} MHz demandée → {target} MHz (bornée par le driver, confirmée)");
+            }
+
+            var appliedAmd = string.Join(" · ", parts);
+            // The NVIDIA-style core/mem offset sliders exist on the page — a successful AMD apply must
+            // say they did nothing (the AMD core clock is the separate ADLX max-frequency control).
             if (profile.CoreOffsetMhz != 0 || profile.MemoryOffsetMhz != 0)
-                appliedAmd += " — offsets core/mémoire non appliqués sur AMD (utiliser Adrenalin)";
+                appliedAmd += " — offsets core/mémoire (style NVIDIA) non appliqués sur AMD (utiliser Adrenalin)";
 
             Serilog.Log.Information("GPU OC applied via ADLX: {Applied}", appliedAmd);
             return new GpuOcApplyResult(true, null, appliedAmd);
@@ -618,22 +805,34 @@ public sealed class GpuOcService : IGpuOcService
     {
         var vendor = (await _hardware.DetectAsync()).GpuVendor;
 
-        if (vendor == GpuVendor.Nvidia && EnsureNvidia() && NvApi.TryReadOffsets(_nvGpu, out int core, out int mem))
+        if (vendor == GpuVendor.Nvidia && EnsureNvidia() && _nv.TryReadOffsets(_nvGpu, out int core, out int mem))
         {
             // Power/temp are reported only from a verified read; voltage is never read natively —
             // unverified axes carry neutral placeholders (100 / 0 / 0), never invented measurements.
-            int powerPct = EnsurePowerVerified() && NvApi.TryReadPowerTarget(_nvGpu, out int pcm)
+            int powerPct = EnsurePowerVerified() && _nv.TryReadPowerTarget(_nvGpu, out int pcm)
                 ? GpuPowerLimit.FromPcm(pcm)
                 : 100;
-            int tempC = EnsureThermalVerified() && NvApi.TryReadThermalLimit(_nvGpu, out int raw)
+            int tempC = EnsureThermalVerified() && _nv.TryReadThermalLimit(_nvGpu, out int raw)
                 ? GpuThermalLimit.FromRaw(raw)
                 : 0;
             return new GpuOcProfile(core, mem, powerPct, tempC, 0);
         }
-        // AMD: only the verified power value is a real measurement; every other axis is a neutral placeholder.
-        if (vendor == GpuVendor.Amd && EnsureAmdPowerVerified()
-            && AdlxApi.TryReadPowerLimit(out int amdCur, out _, out _, out _))
-            return new GpuOcProfile(0, 0, amdCur, 0, 0);
+        // AMD: report the verified axes (power / gfx max freq); everything else is a neutral placeholder.
+        // Return a profile ONLY when every verified axis reads cleanly — otherwise null, so the VM
+        // prefills both from the captured startup defaults (real measurements, right scale) rather than
+        // a placeholder that a blind apply could clamp to an extreme.
+        if (vendor == GpuVendor.Amd)
+        {
+            int power = 100, gfx = 0, vram = 0;
+            bool pv = EnsureAmdPowerVerified();
+            bool gv = EnsureAmdGfxVerified();
+            bool vv = EnsureAmdVramVerified();
+            bool pOk = !pv || _adlx.TryReadPowerLimit(out power, out _, out _, out _);
+            bool gOk = !gv || _adlx.TryReadGfxMaxFreq(out gfx, out _, out _, out _);
+            bool vOk = !vv || _adlx.TryReadVramMaxFreq(out vram, out _, out _, out _);
+            if ((pv || gv || vv) && pOk && gOk && vOk)
+                return new GpuOcProfile(0, 0, power, 0, 0) { AmdMaxFreqMhz = gfx, AmdMaxVramFreqMhz = vram };
+        }
         return null;
     }
 
@@ -643,21 +842,21 @@ public sealed class GpuOcService : IGpuOcService
 
         if (vendor == GpuVendor.Nvidia && EnsureNvidia())
         {
-            if (!NvApi.TrySetOffsets(_nvGpu, 0, 0, out var nvError))
+            if (!_nv.TrySetOffsets(_nvGpu, 0, 0, out var nvError))
                 return new GpuOcApplyResult(false, nvError);
 
             var summary = "offsets remis à 0";
             if (EnsurePowerVerified())
             {
                 // Reset means the card's own default (read from GetInfo), not an assumed 100 %.
-                if (!NvApi.TrySetPowerTarget(_nvGpu, _pwrDefPcm, out var pwrError))
+                if (!_nv.TrySetPowerTarget(_nvGpu, _pwrDefPcm, out var pwrError))
                     return new GpuOcApplyResult(false,
                         $"Offsets remis à 0, mais power limit NON remis au défaut : {pwrError}");
                 summary += $" · power limit remis au défaut carte ({GpuPowerLimit.FromPcm(_pwrDefPcm)} %)";
             }
             if (EnsureThermalVerified())
             {
-                if (!NvApi.TrySetThermalLimit(_nvGpu, _thermDefRaw, out var thermError))
+                if (!_nv.TrySetThermalLimit(_nvGpu, _thermDefRaw, out var thermError))
                     return new GpuOcApplyResult(false,
                         $"Réinitialisation partielle ({summary}), mais cible température NON remise au défaut : {thermError}");
                 summary += $" · cible température remise au défaut carte ({GpuThermalLimit.FromRaw(_thermDefRaw)} °C)";
@@ -667,14 +866,35 @@ public sealed class GpuOcService : IGpuOcService
             return new GpuOcApplyResult(true, null, summary);
         }
 
-        if (vendor == GpuVendor.Amd && EnsureAmdPowerVerified())
+        if (vendor == GpuVendor.Amd && (EnsureAmdPowerVerified() || EnsureAmdGfxVerified() || EnsureAmdVramVerified()))
         {
-            // ADLX has no default getter — the honest reset target is the value read at Aurum startup
-            // (captured at verification time), not a guaranteed factory default.
-            if (!AdlxApi.TrySetPowerLimit(_adlxInitialPct, out var adlxError))
-                return new GpuOcApplyResult(false, $"Power limit AMD NON restauré : {adlxError}");
+            // ADLX has no default getter — the honest reset target for each axis is the value read at
+            // Aurum startup (captured at verification time), not a guaranteed factory default.
+            var parts = new List<string>();
+            if (EnsureAmdPowerVerified())
+            {
+                if (!_adlx.TrySetPowerLimit(_adlxInitialPct, out var powerError))
+                    return new GpuOcApplyResult(false, $"Power limit AMD NON restauré : {powerError}");
+                parts.Add($"power limit → {_adlxInitialPct}");
+            }
+            if (EnsureAmdGfxVerified())
+            {
+                if (!_adlx.TrySetGfxMaxFreq(_gfxInitialMhz, out var gfxError))
+                    return new GpuOcApplyResult(false, parts.Count > 0
+                        ? $"Réinitialisation partielle ({string.Join(" · ", parts)}), mais fréquence GPU max NON restaurée : {gfxError}"
+                        : $"Fréquence GPU max AMD NON restaurée : {gfxError}");
+                parts.Add($"fréquence GPU max → {_gfxInitialMhz} MHz");
+            }
+            if (EnsureAmdVramVerified())
+            {
+                if (!_adlx.TrySetVramMaxFreq(_vramInitialMhz, out var vramError))
+                    return new GpuOcApplyResult(false, parts.Count > 0
+                        ? $"Réinitialisation partielle ({string.Join(" · ", parts)}), mais fréquence mémoire NON restaurée : {vramError}"
+                        : $"Fréquence mémoire AMD NON restaurée : {vramError}");
+                parts.Add($"fréquence mémoire max → {_vramInitialMhz} MHz");
+            }
 
-            var summary = $"power limit restauré à la valeur relevée au lancement d'Aurum ({_adlxInitialPct}, ADLX confirmé)";
+            var summary = $"restauré aux valeurs relevées au lancement d'Aurum : {string.Join(" · ", parts)} (ADLX confirmé)";
             Serilog.Log.Information("GPU OC reset via ADLX: {Summary}", summary);
             return new GpuOcApplyResult(true, null, summary);
         }

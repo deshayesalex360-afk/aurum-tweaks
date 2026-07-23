@@ -93,6 +93,31 @@ public class GpuPowerLimitTests
         Assert.Throws<System.ArgumentException>(() => GpuPowerLimit.ClampToCardPct(100, 100_100, 100_900));
     }
 
+    // ---- Displayed window bounds == clamp bounds (no dead min tick below the card floor) ----
+
+    [Theory]
+    [InlineData(46_875, 47)]      // 46.875 % → ceil 47 (the value the slider min must show)
+    [InlineData(112_500, 113)]    // 112.5 % → ceil 113, NOT FromPcm's rounded 112 (which would be unreachable)
+    [InlineData(100_000, 100)]    // exact integer → 100
+    public void CardMinPct_CeilsSoTheDisplayedMinIsAlwaysApplyable(int minPcm, int expected)
+        => Assert.Equal(expected, GpuPowerLimit.CardMinPct(minPcm));
+
+    [Theory]
+    [InlineData(120_313, 120)]    // 120.313 % → floor 120
+    [InlineData(133_000, 133)]
+    public void CardMaxPct_Floors(int maxPcm, int expected)
+        => Assert.Equal(expected, GpuPowerLimit.CardMaxPct(maxPcm));
+
+    [Fact]
+    public void CardWindow_AgreesWithTheClamp_OnAFractionalPercentCard()
+    {
+        // The whole point of the helpers: the displayed min/max are exactly the clamp's bounds, so a
+        // slider value at the displayed min is applied unchanged (no silent bump the FromPcm rounding caused).
+        const int min = 112_500, max = 133_000;
+        int displayedMin = GpuPowerLimit.CardMinPct(min);
+        Assert.Equal(displayedMin, GpuPowerLimit.ClampToCardPct(displayedMin, min, max)); // 113 in, 113 out
+    }
+
     // ---- Card clamp: requested % pulled inward into the card's window -----
 
     [Theory]

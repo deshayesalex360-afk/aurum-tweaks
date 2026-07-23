@@ -108,6 +108,34 @@ internal static class NvApi
     private const int THERM_LIMIT_ENTRY_STRIDE = 8;
     private const int THERM_LIMIT_VALUE_IN_ENTRY = 4;
 
+    // ---- Client fan coolers (manual fan % + tachometer) --------------------------------------
+    // The interface Afterburner-class tools use on Turing+/Ada (legacy SetCoolerLevels is deprecated
+    // there). V1 layouts VERIFIED LIVE on the dev RTX 4080 SUPER: GetStatus accepts (1704 | 1<<16) and
+    // read count=2 fans + a real 1098 RPM tachometer; GetControl accepts (1452 | 1<<16) with the
+    // ASYMMETRIC header (count at offset 8, entries at 44). A wrong size/version fails safe and writes
+    // nothing. Every set is a read-modify-write of the control buffer + a status read-back confirmation.
+    private const uint ID_FanCoolersGetStatus  = 0x35AED5E8;
+    private const uint ID_FanCoolersGetControl = 0x814B209F;
+    private const uint ID_FanCoolersSetControl = 0xA58971A5;
+
+    private const int FAN_STATUS_SIZE = 1704;
+    private const uint FAN_STATUS_VER1 = FAN_STATUS_SIZE | (1u << 16);
+    private const int FAN_STATUS_COUNT = 4;         // u32 count
+    private const int FAN_STATUS_ENTRIES = 40;      // header: ver, count, reserved[8]
+    private const int FAN_STATUS_ENTRY_STRIDE = 52;
+    private const int FAN_STATUS_RPM_IN_ENTRY = 4;
+    private const int FAN_STATUS_LEVEL_IN_ENTRY = 16;   // fan % (0..100)
+
+    private const int FAN_CONTROL_SIZE = 1452;
+    private const uint FAN_CONTROL_VER1 = FAN_CONTROL_SIZE | (1u << 16);
+    private const int FAN_CONTROL_COUNT = 8;        // u32 count (asymmetric: reserved1 before it)
+    private const int FAN_CONTROL_ENTRIES = 44;     // header: ver, reserved1, count, reserved2[8]
+    private const int FAN_CONTROL_ENTRY_STRIDE = 44;
+    private const int FAN_CONTROL_LEVEL_IN_ENTRY = 4;
+    private const int FAN_CONTROL_MODE_IN_ENTRY = 8;    // 0 = auto, 1 = manual
+    private const int FAN_MODE_AUTO = 0;
+    private const int FAN_MODE_MANUAL = 1;
+
     private static bool _initTried;
     private static bool _initOk;
     private static EnumPhysicalGPUsDelegate? _enum;
@@ -120,6 +148,9 @@ internal static class NvApi
     private static Pstates20Delegate? _thermGetInfo;
     private static Pstates20Delegate? _thermGetLimit;
     private static Pstates20Delegate? _thermSetLimit;
+    private static Pstates20Delegate? _fanGetStatus;
+    private static Pstates20Delegate? _fanGetControl;
+    private static Pstates20Delegate? _fanSetControl;
 
     private static TDelegate? GetDelegate<TDelegate>(uint id) where TDelegate : Delegate
     {
@@ -151,6 +182,9 @@ internal static class NvApi
             _thermGetInfo = GetDelegate<Pstates20Delegate>(ID_ThermalPoliciesGetInfo);
             _thermGetLimit = GetDelegate<Pstates20Delegate>(ID_ThermalPoliciesGetLimit);
             _thermSetLimit = GetDelegate<Pstates20Delegate>(ID_ThermalPoliciesSetLimit);
+            _fanGetStatus = GetDelegate<Pstates20Delegate>(ID_FanCoolersGetStatus);
+            _fanGetControl = GetDelegate<Pstates20Delegate>(ID_FanCoolersGetControl);
+            _fanSetControl = GetDelegate<Pstates20Delegate>(ID_FanCoolersSetControl);
 
             _initOk = _enum is not null && _getPstates is not null && _setPstates is not null;
             return _initOk;
@@ -586,9 +620,202 @@ internal static class NvApi
         return false;
     }
 
+    /// <summary>Read the current fan level (%) and tachometer (RPM) from the first plausible cooler entry.
+    /// Read-only; a mis-read layout (implausible level/rpm/count) reports unavailable rather than trusting it.</summary>
+    public static bool TryReadFanStatus(IntPtr gpu, out int levelPct, out int rpm)
+    {
+        levelPct = rpm = 0;
+        if (!TryInitialize() || _fanGetStatus is null || gpu == IntPtr.Zero) return false;
+
+        IntPtr buf = Marshal.AllocHGlobal(FAN_STATUS_SIZE);
+        try
+        {
+            Zero(buf, FAN_STATUS_SIZE);
+            Marshal.WriteInt32(buf, 0, unchecked((int)FAN_STATUS_VER1));
+            if (_fanGetStatus(gpu, buf) != NVAPI_OK) return false;
+
+            int count = Marshal.ReadInt32(buf, FAN_STATUS_COUNT);
+            if (count is < 1 or > 4) return false;
+            for (int i = 0; i < count; i++)
+            {
+                int e = FAN_STATUS_ENTRIES + i * FAN_STATUS_ENTRY_STRIDE;
+                int lvl = Marshal.ReadInt32(buf, e + FAN_STATUS_LEVEL_IN_ENTRY);
+                int r = Marshal.ReadInt32(buf, e + FAN_STATUS_RPM_IN_ENTRY);
+                if (GpuFanSafety.IsPlausiblePercent(lvl) && GpuFanSafety.IsPlausibleRpm(r))
+                {
+                    levelPct = lvl;
+                    rpm = r;
+                    return true;
+                }
+            }
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buf);
+        }
+    }
+
+    /// <summary>
+    /// Set a manual fan level (%) on every cooler. Read-modify-write of the control buffer (unknown fields
+    /// preserved), then a status read-back — success is reported ONLY when the read-back level equals the
+    /// requested value. The requested % is pushed through <see cref="GpuFanSafety.ClampManualPercent"/> so
+    /// Aurum can never drive the fan below the hard safety floor, whatever the caller passes.
+    /// </summary>
+    public static bool TrySetFanManual(IntPtr gpu, int requestedPct, out string error)
+    {
+        int pct = GpuFanSafety.ClampManualPercent(requestedPct);
+        return TryWriteFanControl(gpu, FAN_MODE_MANUAL, pct, confirmLevel: pct, out error);
+    }
+
+    /// <summary>Hand fan control back to the driver's automatic curve on every cooler.</summary>
+    public static bool TrySetFanAuto(IntPtr gpu, out string error)
+        => TryWriteFanControl(gpu, FAN_MODE_AUTO, level: 0, confirmLevel: null, out error);
+
+    private static bool TryWriteFanControl(IntPtr gpu, int mode, int level, int? confirmLevel, out string error)
+    {
+        error = string.Empty;
+        if (!TryInitialize() || _fanGetControl is null || _fanSetControl is null || gpu == IntPtr.Zero)
+        {
+            error = "NVAPI contrôle ventilateur indisponible.";
+            return false;
+        }
+
+        IntPtr buf = Marshal.AllocHGlobal(FAN_CONTROL_SIZE);
+        try
+        {
+            Zero(buf, FAN_CONTROL_SIZE);
+            Marshal.WriteInt32(buf, 0, unchecked((int)FAN_CONTROL_VER1));
+            if (_fanGetControl(gpu, buf) != NVAPI_OK)
+            {
+                error = "Lecture préalable du contrôle ventilateur refusée par le driver.";
+                return false;
+            }
+            int count = Marshal.ReadInt32(buf, FAN_CONTROL_COUNT);
+            if (count is < 1 or > 4)
+            {
+                error = "Disposition contrôle ventilateur inattendue — écriture refusée par prudence.";
+                return false;
+            }
+            for (int i = 0; i < count; i++)
+            {
+                int e = FAN_CONTROL_ENTRIES + i * FAN_CONTROL_ENTRY_STRIDE;
+                Marshal.WriteInt32(buf, e + FAN_CONTROL_MODE_IN_ENTRY, mode);
+                if (mode == FAN_MODE_MANUAL) Marshal.WriteInt32(buf, e + FAN_CONTROL_LEVEL_IN_ENTRY, level);
+            }
+
+            int status = _fanSetControl(gpu, buf);
+            if (status == NVAPI_INVALID_USER_PRIVILEGE)
+            {
+                error = "Écriture refusée : privilèges insuffisants (lancer Aurum en administrateur).";
+                return false;
+            }
+            if (status != NVAPI_OK)
+            {
+                error = $"NVAPI a refusé le contrôle ventilateur (code {status}).";
+                return false;
+            }
+
+            // Confirm a manual level by read-back (auto has no target level to confirm).
+            if (confirmLevel is int want)
+            {
+                if (!TryReadFanStatus(gpu, out int back, out _))
+                {
+                    error = "Écriture envoyée mais relecture impossible — état non confirmé.";
+                    return false;
+                }
+                if (back != want)
+                {
+                    error = $"Écriture non confirmée : le driver rapporte {back} % au lieu de {want} %.";
+                    return false;
+                }
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buf);
+        }
+    }
+
     private static void Zero(IntPtr ptr, int size)
     {
         for (int i = 0; i < size; i += 4)
             Marshal.WriteInt32(ptr, i, 0);
     }
+}
+
+/// <summary>
+/// Injectable seam over the static <see cref="NvApi"/>. Exists so <c>GpuOcService</c>'s orchestration
+/// (vendor routing, multi-axis apply, partial-failure honesty, read-back decisions) is unit-testable
+/// with a fake instead of a real NVIDIA card — and so all NVAPI entry points are serialized behind one
+/// lock (the static class has no synchronization; two overlapping VM commands could otherwise interleave
+/// writes and produce a spurious "unconfirmed" failure). Delegates verbatim; adds only the lock.
+/// </summary>
+public interface INvApi
+{
+    bool TryGetFirstGpu(out IntPtr gpu, out string name);
+    bool TryReadOffsets(IntPtr gpu, out int coreMhz, out int memMhz);
+    bool TrySetOffsets(IntPtr gpu, int coreMhz, int memMhz, out string error);
+    bool TryReadPowerInfo(IntPtr gpu, out int minPcm, out int defPcm, out int maxPcm);
+    bool TryReadPowerTarget(IntPtr gpu, out int currentPcm);
+    bool TrySetPowerTarget(IntPtr gpu, int targetPcm, out string error);
+    bool TryReadThermalInfo(IntPtr gpu, out int minRaw, out int defRaw, out int maxRaw);
+    bool TryReadThermalLimit(IntPtr gpu, out int currentRaw);
+    bool TrySetThermalLimit(IntPtr gpu, int targetRaw, out string error);
+    bool TryReadFanStatus(IntPtr gpu, out int levelPct, out int rpm);
+    bool TrySetFanManual(IntPtr gpu, int requestedPct, out string error);
+    bool TrySetFanAuto(IntPtr gpu, out string error);
+}
+
+/// <summary>Production <see cref="INvApi"/>: every call is delegated to the static wrapper under a single
+/// process-wide lock, giving NVAPI the same "serialized behind one lock" contract AdlxApi already has.</summary>
+public sealed class NvApiBackend : INvApi
+{
+    private static readonly object Sync = new();
+
+    public bool TryGetFirstGpu(out IntPtr gpu, out string name)
+    { lock (Sync) { return NvApi.TryGetFirstGpu(out gpu, out name); } }
+
+    public bool TryReadOffsets(IntPtr gpu, out int coreMhz, out int memMhz)
+    { lock (Sync) { return NvApi.TryReadOffsets(gpu, out coreMhz, out memMhz); } }
+
+    public bool TrySetOffsets(IntPtr gpu, int coreMhz, int memMhz, out string error)
+    { lock (Sync) { return NvApi.TrySetOffsets(gpu, coreMhz, memMhz, out error); } }
+
+    public bool TryReadPowerInfo(IntPtr gpu, out int minPcm, out int defPcm, out int maxPcm)
+    { lock (Sync) { return NvApi.TryReadPowerInfo(gpu, out minPcm, out defPcm, out maxPcm); } }
+
+    public bool TryReadPowerTarget(IntPtr gpu, out int currentPcm)
+    { lock (Sync) { return NvApi.TryReadPowerTarget(gpu, out currentPcm); } }
+
+    public bool TrySetPowerTarget(IntPtr gpu, int targetPcm, out string error)
+    { lock (Sync) { return NvApi.TrySetPowerTarget(gpu, targetPcm, out error); } }
+
+    public bool TryReadThermalInfo(IntPtr gpu, out int minRaw, out int defRaw, out int maxRaw)
+    { lock (Sync) { return NvApi.TryReadThermalInfo(gpu, out minRaw, out defRaw, out maxRaw); } }
+
+    public bool TryReadThermalLimit(IntPtr gpu, out int currentRaw)
+    { lock (Sync) { return NvApi.TryReadThermalLimit(gpu, out currentRaw); } }
+
+    public bool TrySetThermalLimit(IntPtr gpu, int targetRaw, out string error)
+    { lock (Sync) { return NvApi.TrySetThermalLimit(gpu, targetRaw, out error); } }
+
+    public bool TryReadFanStatus(IntPtr gpu, out int levelPct, out int rpm)
+    { lock (Sync) { return NvApi.TryReadFanStatus(gpu, out levelPct, out rpm); } }
+
+    public bool TrySetFanManual(IntPtr gpu, int requestedPct, out string error)
+    { lock (Sync) { return NvApi.TrySetFanManual(gpu, requestedPct, out error); } }
+
+    public bool TrySetFanAuto(IntPtr gpu, out string error)
+    { lock (Sync) { return NvApi.TrySetFanAuto(gpu, out error); } }
 }

@@ -8,7 +8,8 @@ public sealed record AdlxGpuInfo(
     string Name,
     bool IsIntegrated,
     bool ManualPowerTuningSupported,
-    bool ManualGfxTuningSupported);
+    bool ManualGfxTuningSupported,
+    bool ManualVramTuningSupported);
 
 /// <summary>
 /// Minimal, honest ADLX interop for AMD GPU power-limit tuning.
@@ -57,14 +58,32 @@ internal static class AdlxApi
     private const int GPU_NAME = 7;
 
     private const int TUN_IS_MANUAL_GFX = 8;       // IADLXGPUTuningServices::IsSupportedManualGFXTuning
+    private const int TUN_IS_MANUAL_VRAM = 9;
     private const int TUN_IS_MANUAL_POWER = 11;
-    private const int TUN_GET_MANUAL_POWER = 17;   // returns generic IADLXInterface**
+    private const int TUN_GET_MANUAL_GFX = 14;     // returns generic IADLXInterface**
+    private const int TUN_GET_MANUAL_VRAM = 15;
+    private const int TUN_GET_MANUAL_POWER = 17;
 
     private const int PWR_GET_RANGE = 3;           // IADLXManualPowerTuning
     private const int PWR_GET = 4;
     private const int PWR_SET = 5;
 
-    private const string POWER_TUNING_IID = "IADLXManualPowerTuning";   // wide string in ADLX
+    // IADLXManualGraphicsTuning2 (RDNA+ min/max/voltage model). We drive the GPU MAX frequency only —
+    // the OC-relevant "core clock" axis. Min frequency and voltage (slots 3/4/5 and 9/10/11) are
+    // deliberately left to Adrenalin (voltage is NEVER applied by Aurum, per the honesty mandate).
+    private const int GFX2_GET_MAXFREQ_RANGE = 6;
+    private const int GFX2_GET_MAXFREQ = 7;
+    private const int GFX2_SET_MAXFREQ = 8;
+
+    // IADLXManualVRAMTuning2 (RDNA+ memory model). We drive the MAX memory frequency only; the memory
+    // timing-level selector (slots 3-6) is left to Adrenalin.
+    private const int VRAM2_GET_MAXFREQ_RANGE = 7;
+    private const int VRAM2_GET_MAXFREQ = 8;
+    private const int VRAM2_SET_MAXFREQ = 9;
+
+    private const string POWER_TUNING_IID = "IADLXManualPowerTuning";        // wide string in ADLX
+    private const string GFX_TUNING2_IID = "IADLXManualGraphicsTuning2";     // RDNA+ manual GFX interface
+    private const string VRAM_TUNING2_IID = "IADLXManualVRAMTuning2";        // RDNA+ manual VRAM interface
 
     [StructLayout(LayoutKind.Sequential)]
     private struct AdlxIntRange
@@ -154,7 +173,7 @@ internal static class AdlxApi
     {
         lock (Sync)
         {
-            info = _info ?? new AdlxGpuInfo(string.Empty, false, false, false);
+            info = _info ?? new AdlxGpuInfo(string.Empty, false, false, false, false);
             if (_info is not null) return true;
             if (!TryInitialize()) return false;
 
@@ -181,12 +200,13 @@ internal static class AdlxApi
 
                 bool powerOk = Fn<GpuSupportDelegate>(tuning, TUN_IS_MANUAL_POWER)(tuning, gpu, out byte p) == ADLX_OK && p != 0;
                 bool gfxOk = Fn<GpuSupportDelegate>(tuning, TUN_IS_MANUAL_GFX)(tuning, gpu, out byte g) == ADLX_OK && g != 0;
+                bool vramOk = Fn<GpuSupportDelegate>(tuning, TUN_IS_MANUAL_VRAM)(tuning, gpu, out byte v) == ADLX_OK && v != 0;
 
                 _gpu = gpu;
                 _tuning = tuning;
                 gpu = IntPtr.Zero;       // ownership transferred to the cached fields —
                 tuning = IntPtr.Zero;    // the finally block must not release them.
-                _info = new AdlxGpuInfo(name, integrated, powerOk, gfxOk);
+                _info = new AdlxGpuInfo(name, integrated, powerOk, gfxOk, vramOk);
                 info = _info;
                 return true;
             }
@@ -316,4 +336,264 @@ internal static class AdlxApi
             }
         }
     }
+
+    /// <summary>Acquire IADLXManualGraphicsTuning2 (RDNA+ model) for the first GPU. Both refs are owned by
+    /// the caller. Fails (returns false) on older cards that only expose the state-list Tuning1 model —
+    /// that write path needs a state-list interface Aurum does not integrate, so it stays honestly
+    /// "Adrenalin only" rather than half-implemented.</summary>
+    private static bool TryGetGfxInterface(out IntPtr generic, out IntPtr gfx)
+    {
+        generic = IntPtr.Zero;
+        gfx = IntPtr.Zero;
+        if (_tuning == IntPtr.Zero || _gpu == IntPtr.Zero) return false;
+        if (!Succeeded(Fn<GpuOutPtrDelegate>(_tuning, TUN_GET_MANUAL_GFX)(_tuning, _gpu, out generic)) || generic == IntPtr.Zero)
+            return false;
+        if (!Succeeded(Fn<QueryInterfaceDelegate>(generic, IFACE_QUERYINTERFACE)(generic, GFX_TUNING2_IID, out gfx)) || gfx == IntPtr.Zero)
+        {
+            Release(generic);
+            generic = IntPtr.Zero;
+            return false;
+        }
+        return true;
+    }
+
+    /// <summary>Read the driver's GPU max-frequency window and current value (MHz — absolute pre-Navi4,
+    /// an offset from base on Navi4+; Aurum round-trips inside the driver's own window either way). Read-only.</summary>
+    public static bool TryReadGfxMaxFreq(out int currentMhz, out int minMhz, out int maxMhz, out int stepMhz)
+    {
+        currentMhz = minMhz = maxMhz = stepMhz = 0;
+        lock (Sync)
+        {
+            if (!TryGetFirstGpuInfo(out var info) || !info.ManualGfxTuningSupported) return false;
+
+            IntPtr generic = IntPtr.Zero, gfx = IntPtr.Zero;
+            try
+            {
+                if (!TryGetGfxInterface(out generic, out gfx)) return false;
+                if (Fn<OutRangeDelegate>(gfx, GFX2_GET_MAXFREQ_RANGE)(gfx, out AdlxIntRange r) != ADLX_OK) return false;
+                if (Fn<OutIntDelegate>(gfx, GFX2_GET_MAXFREQ)(gfx, out int cur) != ADLX_OK) return false;
+
+                minMhz = r.MinValue;
+                maxMhz = r.MaxValue;
+                stepMhz = r.Step;
+                currentMhz = cur;
+                return GpuGfxRange.IsCoherent(minMhz, maxMhz, stepMhz, currentMhz);
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                Release(gfx);
+                Release(generic);
+            }
+        }
+    }
+
+    /// <summary>Set the GPU max frequency (driver scale). Same honesty contract as every other write:
+    /// success is reported ONLY when an immediate read-back equals the requested value.</summary>
+    public static bool TrySetGfxMaxFreq(int targetMhz, out string error)
+    {
+        error = string.Empty;
+        lock (Sync)
+        {
+            if (!TryGetFirstGpuInfo(out var info) || !info.ManualGfxTuningSupported)
+            {
+                error = "ADLX GFX tuning indisponible sur ce GPU.";
+                return false;
+            }
+
+            IntPtr generic = IntPtr.Zero, gfx = IntPtr.Zero;
+            try
+            {
+                if (!TryGetGfxInterface(out generic, out gfx))
+                {
+                    error = "Interface ADLX GFX tuning (RDNA+) inaccessible — GPU trop ancien (modèle state-list non intégré).";
+                    return false;
+                }
+
+                int status = Fn<SetIntDelegate>(gfx, GFX2_SET_MAXFREQ)(gfx, targetMhz);
+                if (status == ADLX_RESET_NEEDED)
+                {
+                    error = "Écriture refusée : l'auto-tuning AMD est actif — désactive-le dans Adrenalin d'abord.";
+                    return false;
+                }
+                if (!Succeeded(status))
+                {
+                    error = $"ADLX a refusé l'écriture de la fréquence max (code {status}).";
+                    return false;
+                }
+
+                if (Fn<OutIntDelegate>(gfx, GFX2_GET_MAXFREQ)(gfx, out int readBack) != ADLX_OK)
+                {
+                    error = "Écriture envoyée mais relecture impossible — état non confirmé.";
+                    return false;
+                }
+                if (readBack != targetMhz)
+                {
+                    error = $"Écriture non confirmée : le driver rapporte {readBack} au lieu de {targetMhz}.";
+                    return false;
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+            finally
+            {
+                Release(gfx);
+                Release(generic);
+            }
+        }
+    }
+
+    /// <summary>Acquire IADLXManualVRAMTuning2 (RDNA+ memory model) for the first GPU. Both refs owned by
+    /// the caller. Fails on older state-list VRAM cards (Tuning1) — that write path is not integrated.</summary>
+    private static bool TryGetVramInterface(out IntPtr generic, out IntPtr vram)
+    {
+        generic = IntPtr.Zero;
+        vram = IntPtr.Zero;
+        if (_tuning == IntPtr.Zero || _gpu == IntPtr.Zero) return false;
+        if (!Succeeded(Fn<GpuOutPtrDelegate>(_tuning, TUN_GET_MANUAL_VRAM)(_tuning, _gpu, out generic)) || generic == IntPtr.Zero)
+            return false;
+        if (!Succeeded(Fn<QueryInterfaceDelegate>(generic, IFACE_QUERYINTERFACE)(generic, VRAM_TUNING2_IID, out vram)) || vram == IntPtr.Zero)
+        {
+            Release(generic);
+            generic = IntPtr.Zero;
+            return false;
+        }
+        return true;
+    }
+
+    /// <summary>Read the driver's max memory-frequency window and current value (MHz, driver scale). Read-only.</summary>
+    public static bool TryReadVramMaxFreq(out int currentMhz, out int minMhz, out int maxMhz, out int stepMhz)
+    {
+        currentMhz = minMhz = maxMhz = stepMhz = 0;
+        lock (Sync)
+        {
+            if (!TryGetFirstGpuInfo(out var info) || !info.ManualVramTuningSupported) return false;
+
+            IntPtr generic = IntPtr.Zero, vram = IntPtr.Zero;
+            try
+            {
+                if (!TryGetVramInterface(out generic, out vram)) return false;
+                if (Fn<OutRangeDelegate>(vram, VRAM2_GET_MAXFREQ_RANGE)(vram, out AdlxIntRange r) != ADLX_OK) return false;
+                if (Fn<OutIntDelegate>(vram, VRAM2_GET_MAXFREQ)(vram, out int cur) != ADLX_OK) return false;
+
+                minMhz = r.MinValue;
+                maxMhz = r.MaxValue;
+                stepMhz = r.Step;
+                currentMhz = cur;
+                return GpuGfxRange.IsCoherent(minMhz, maxMhz, stepMhz, currentMhz);
+            }
+            catch
+            {
+                return false;
+            }
+            finally
+            {
+                Release(vram);
+                Release(generic);
+            }
+        }
+    }
+
+    /// <summary>Set the max memory frequency (driver scale). Success reported ONLY when an immediate read-back equals the request.</summary>
+    public static bool TrySetVramMaxFreq(int targetMhz, out string error)
+    {
+        error = string.Empty;
+        lock (Sync)
+        {
+            if (!TryGetFirstGpuInfo(out var info) || !info.ManualVramTuningSupported)
+            {
+                error = "ADLX VRAM tuning indisponible sur ce GPU.";
+                return false;
+            }
+
+            IntPtr generic = IntPtr.Zero, vram = IntPtr.Zero;
+            try
+            {
+                if (!TryGetVramInterface(out generic, out vram))
+                {
+                    error = "Interface ADLX VRAM tuning (RDNA+) inaccessible — GPU trop ancien (modèle state-list non intégré).";
+                    return false;
+                }
+
+                int status = Fn<SetIntDelegate>(vram, VRAM2_SET_MAXFREQ)(vram, targetMhz);
+                if (status == ADLX_RESET_NEEDED)
+                {
+                    error = "Écriture refusée : l'auto-tuning AMD est actif — désactive-le dans Adrenalin d'abord.";
+                    return false;
+                }
+                if (!Succeeded(status))
+                {
+                    error = $"ADLX a refusé l'écriture de la fréquence mémoire (code {status}).";
+                    return false;
+                }
+
+                if (Fn<OutIntDelegate>(vram, VRAM2_GET_MAXFREQ)(vram, out int readBack) != ADLX_OK)
+                {
+                    error = "Écriture envoyée mais relecture impossible — état non confirmé.";
+                    return false;
+                }
+                if (readBack != targetMhz)
+                {
+                    error = $"Écriture non confirmée : le driver rapporte {readBack} au lieu de {targetMhz}.";
+                    return false;
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                error = ex.Message;
+                return false;
+            }
+            finally
+            {
+                Release(vram);
+                Release(generic);
+            }
+        }
+    }
+}
+
+/// <summary>
+/// Injectable seam over the static <see cref="AdlxApi"/>, so <c>GpuOcService</c>'s AMD orchestration
+/// (power/gfx/vram apply, partial-failure honesty, the null-on-partial-read decision) is unit-testable
+/// with a fake instead of a real tunable AMD card. Delegates verbatim — <see cref="AdlxApi"/> already
+/// serializes every call behind its own lock, so no extra synchronization is added here.
+/// </summary>
+public interface IAdlxApi
+{
+    bool TryGetFirstGpuInfo(out AdlxGpuInfo info);
+    bool TryReadPowerLimit(out int currentPct, out int minPct, out int maxPct, out int stepPct);
+    bool TrySetPowerLimit(int targetPct, out string error);
+    bool TryReadGfxMaxFreq(out int currentMhz, out int minMhz, out int maxMhz, out int stepMhz);
+    bool TrySetGfxMaxFreq(int targetMhz, out string error);
+    bool TryReadVramMaxFreq(out int currentMhz, out int minMhz, out int maxMhz, out int stepMhz);
+    bool TrySetVramMaxFreq(int targetMhz, out string error);
+}
+
+/// <summary>Production <see cref="IAdlxApi"/>: thin pass-through to the static ADLX wrapper.</summary>
+public sealed class AdlxBackend : IAdlxApi
+{
+    public bool TryGetFirstGpuInfo(out AdlxGpuInfo info) => AdlxApi.TryGetFirstGpuInfo(out info);
+
+    public bool TryReadPowerLimit(out int currentPct, out int minPct, out int maxPct, out int stepPct)
+        => AdlxApi.TryReadPowerLimit(out currentPct, out minPct, out maxPct, out stepPct);
+
+    public bool TrySetPowerLimit(int targetPct, out string error) => AdlxApi.TrySetPowerLimit(targetPct, out error);
+
+    public bool TryReadGfxMaxFreq(out int currentMhz, out int minMhz, out int maxMhz, out int stepMhz)
+        => AdlxApi.TryReadGfxMaxFreq(out currentMhz, out minMhz, out maxMhz, out stepMhz);
+
+    public bool TrySetGfxMaxFreq(int targetMhz, out string error) => AdlxApi.TrySetGfxMaxFreq(targetMhz, out error);
+
+    public bool TryReadVramMaxFreq(out int currentMhz, out int minMhz, out int maxMhz, out int stepMhz)
+        => AdlxApi.TryReadVramMaxFreq(out currentMhz, out minMhz, out maxMhz, out stepMhz);
+
+    public bool TrySetVramMaxFreq(int targetMhz, out string error) => AdlxApi.TrySetVramMaxFreq(targetMhz, out error);
 }

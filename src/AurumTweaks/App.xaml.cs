@@ -3,6 +3,7 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
 using AurumTweaks.Services;
+using AurumTweaks.Services.Interop;
 using AurumTweaks.ViewModels;
 using AurumTweaks.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -115,9 +116,18 @@ public partial class App : Application
         services.AddSingleton<ILicenseStore, LicenseStore>();
         services.AddSingleton<ILicenseService, LicenseService>();
         services.AddSingleton<IGameDetectionService, GameDetectionService>();
+        services.AddSingleton<IGameOcBindingStore, GameOcBindingStore>();
         services.AddSingleton<INetworkOptiService, NetworkOptiService>();
         services.AddSingleton<IAppSettingsStore, AppSettingsStore>();
+        // Native-interop seams over the static NVAPI/ADLX wrappers, so GpuOcService's orchestration is
+        // fakeable in tests and NVAPI access is serialized (see INvApi/IAdlxApi).
+        services.AddSingleton<INvApi, NvApiBackend>();
+        services.AddSingleton<IAdlxApi, AdlxBackend>();
         services.AddSingleton<IGpuOcService, GpuOcService>();
+        // Integrated GPU stability test: real D3D11 compute load + Windows TDR (driver-reset) detection.
+        services.AddSingleton<IGpuStressLoad, GpuStressLoad>();
+        services.AddSingleton<IGpuTdrProbe, GpuTdrProbe>();
+        services.AddSingleton<IGpuFanService, GpuFanService>();
         services.AddSingleton<IAdaptiveRecommendationService, AdaptiveRecommendationService>();
         services.AddSingleton<IBiosAdvisorService, BiosAdvisorService>();
         services.AddSingleton<IBiosApplyService, BiosApplyService>();

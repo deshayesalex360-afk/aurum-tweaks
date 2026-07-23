@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using AurumTweaks.Models;
 using AurumTweaks.Services;
+using AurumTweaks.Services.Interop;
 using AurumTweaks.ViewModels;
 using Xunit;
 
@@ -25,10 +26,18 @@ public class OverclockingViewModelTests
     // deterministically. The ctor's LoadAsync completes synchronously because every fake returns a completed Task.
     // Default licence: not-configured ⇒ GPU OC unlocked, so the freemium gate is a no-op and every pre-existing
     // apply/reset test behaves exactly as before. Gating tests pass an explicit configured FakeLicenseService.
-    private static OverclockingViewModel NewVm(FakeGpuOcService? oc = null, FakeLicenseService? license = null)
+    private static OverclockingViewModel NewVm(FakeGpuOcService? oc = null, FakeLicenseService? license = null,
+                                               RecordingApplyJournal? journal = null, FakeMonitoringService? monitoring = null,
+                                               FakeGpuStressLoad? stress = null, StubGpuTdrProbe? tdr = null,
+                                               FakeGpuFanService? fan = null)
         => new(new FakeHardwareService(new HardwareInfo { GpuPrimary = "NVIDIA Test GPU 0000" }),
                oc ?? new FakeGpuOcService(),
-               license ?? new FakeLicenseService());
+               license ?? new FakeLicenseService(),
+               journal ?? new RecordingApplyJournal(),
+               monitoring ?? new FakeMonitoringService(),
+               stress ?? new FakeGpuStressLoad(),
+               tdr ?? new StubGpuTdrProbe(),
+               fan ?? new FakeGpuFanService());
 
     // ---- RunAutoOc: a suggestion, never an auto-validated overclock ------------------
 
@@ -63,17 +72,19 @@ public class OverclockingViewModelTests
         Assert.Equal(150, vm.GpuCoreOffsetMhz);
     }
 
-    // ---- RunStabilityTest: never pretends a GPU stress ran --------------------------
+    // ---- RunStabilityTest: runs a REAL integrated GPU load when available (see Phase 3 section below) ----
 
     [Fact]
-    public void RunStabilityTest_IsHonestThatNoGpuStressIsIntegrated_AndPointsToRealTools()
+    public void RunStabilityTest_GpuLoadAvailable_StartsARealRun()
     {
-        var vm = NewVm();
+        var stress = new FakeGpuStressLoad { Available = true };
+        var vm = NewVm(stress: stress);
+
         vm.RunStabilityTestCommand.Execute(null);
 
-        Assert.Contains("Pas de stress GPU intégré", vm.StressTestProgress);
-        Assert.Contains("OCCT", vm.StressTestProgress);     // names a real external validator
-        Assert.Contains("Stabilité", vm.StressTestProgress); // routes to the built-in RAM/CPU tabs
+        Assert.Equal(1, stress.StartCount);                 // a real GPU load was started, not a canned message
+        Assert.True(vm.StabilityTestRunning);
+        Assert.Contains("Charge GPU réelle", vm.StressTestProgress);
     }
 
     // ---- Apply / Reset: provably wired to the backend (not dead buttons) ------------
@@ -370,6 +381,16 @@ public class OverclockingViewModelTests
     }
 
     [Fact]
+    public void Load_TempNative_ZeroLiveRead_FallsBackToCapturedDefault_NotTheHardcoded83()
+    {
+        // A verified temp axis whose live read comes back 0 °C (a momentarily failed thermal read) must
+        // NOT leave the hard-coded 83 init showing as if it were the card's current target — that would be
+        // a placeholder presented as a measurement (fabricated-metric shape the mandate forbids).
+        var oc = new FakeGpuOcService(NativeThermStatus(), current: new GpuOcProfile(0, 0, 119, 0, 0));
+        Assert.Equal(84, NewVm(oc).GpuTempLimitC);   // BackendStatus.TempLimitDefaultC, not 83
+    }
+
+    [Fact]
     public async Task ResetOc_TempNative_ReturnsTheSliderToTheCardsOwnDefault()
     {
         var vm = NewVm(new FakeGpuOcService(NativeThermStatus(), current: new GpuOcProfile(0, 0, 119, 88, 0)));
@@ -393,6 +414,114 @@ public class OverclockingViewModelTests
         Assert.Equal(70, oc.Applied[0].TempLimitC);   // the backend receives exactly the dialed target
     }
 
+    // ---- AMD GPU max frequency (ADLX): the row only exists when it genuinely applies ----
+
+    private static GpuOcBackendStatus AmdGfxStatus()
+        => new(GpuVendor.Amd, "Radeon Test", BackendAvailable: true,
+               PowerBackend: GpuPowerBackendKind.AdlxDocumented, PowerLimitMinPct: -10, PowerLimitMaxPct: 15, PowerLimitDefaultPct: 0,
+               GfxTuningNative: true, GfxMaxFreqMinMhz: 500, GfxMaxFreqMaxMhz: 3000, GfxMaxFreqDefaultMhz: 2500);
+
+    [Fact]
+    public void GfxRow_HiddenByDefault_VisibleOnlyWhenVerifiedNative()
+    {
+        Assert.False(NewVm().GfxTuningNative);
+        Assert.True(NewVm(new FakeGpuOcService(AmdGfxStatus())).GfxTuningNative);
+    }
+
+    [Fact]
+    public void GfxSliderBounds_AreTheDriverWindow_WhenNative()
+    {
+        var vm = NewVm(new FakeGpuOcService(AmdGfxStatus()));
+        Assert.Equal(500, vm.GfxSliderMinMhz);
+        Assert.Equal(3000, vm.GfxSliderMaxMhz);
+    }
+
+    [Fact]
+    public void Load_GfxNative_PrefillsTheRealMaxFreq()
+    {
+        // The service read 2800 MHz from the driver → the slider must show the measured state.
+        var oc = new FakeGpuOcService(AmdGfxStatus(), current: new GpuOcProfile(0, 0, 0, 0, 0) { AmdMaxFreqMhz = 2800 });
+        Assert.Equal(2800, NewVm(oc).GpuAmdMaxFreqMhz);
+    }
+
+    [Fact]
+    public void Load_GfxNative_ReadFails_UsesStartupDefault_NotAStrayZero()
+    {
+        // Read returns null on a verified GFX card → prefill from the captured startup value (2500),
+        // never the init 0 that a blind apply would clamp down to the window minimum (a downclock).
+        var oc = new FakeGpuOcService(AmdGfxStatus(), current: null);
+        Assert.Equal(2500, NewVm(oc).GpuAmdMaxFreqMhz);
+    }
+
+    [Fact]
+    public async Task ApplyGpuOc_PassesTheAmdMaxFreqThroughTheProfile()
+    {
+        var oc = new FakeGpuOcService(AmdGfxStatus());
+        var vm = NewVm(oc);
+        vm.GpuAmdMaxFreqMhz = 2700;
+
+        await vm.ApplyGpuOcCommand.ExecuteAsync(null);
+
+        Assert.Single(oc.Applied);
+        Assert.Equal(2700, oc.Applied[0].AmdMaxFreqMhz);   // the backend receives exactly the dialed target
+    }
+
+    [Fact]
+    public async Task ResetOc_GfxNative_ReturnsTheSliderToTheStartupDefault()
+    {
+        var vm = NewVm(new FakeGpuOcService(AmdGfxStatus(), current: new GpuOcProfile(0, 0, 0, 0, 0) { AmdMaxFreqMhz = 2800 }));
+        Assert.Equal(2800, vm.GpuAmdMaxFreqMhz);          // prefilled from the driver
+
+        await vm.ResetOcCommand.ExecuteAsync(null);
+
+        Assert.Equal(2500, vm.GpuAmdMaxFreqMhz);          // the startup default, not a stray 0
+    }
+
+    // ---- AMD memory max frequency (ADLX VRAM): same verified-only contract as GPU frequency ----
+
+    private static GpuOcBackendStatus AmdVramStatus()
+        => new(GpuVendor.Amd, "Radeon Test", BackendAvailable: true,
+               GfxTuningNative: true, GfxMaxFreqMinMhz: 500, GfxMaxFreqMaxMhz: 3000, GfxMaxFreqDefaultMhz: 2500,
+               VramTuningNative: true, VramMaxFreqMinMhz: 1000, VramMaxFreqMaxMhz: 2600, VramMaxFreqDefaultMhz: 2400);
+
+    [Fact]
+    public void VramRow_HiddenByDefault_VisibleOnlyWhenVerifiedNative()
+    {
+        Assert.False(NewVm().VramTuningNative);
+        Assert.True(NewVm(new FakeGpuOcService(AmdVramStatus())).VramTuningNative);
+    }
+
+    [Fact]
+    public void VramSliderBounds_AreTheDriverWindow_WhenNative()
+    {
+        var vm = NewVm(new FakeGpuOcService(AmdVramStatus()));
+        Assert.Equal(1000, vm.VramSliderMinMhz);
+        Assert.Equal(2600, vm.VramSliderMaxMhz);
+    }
+
+    [Fact]
+    public void Load_VramNative_PrefillsTheRealMaxFreq_ElseStartupDefaultOnReadFail()
+    {
+        var read = new FakeGpuOcService(AmdVramStatus(), current: new GpuOcProfile(0, 0, 0, 0, 0) { AmdMaxVramFreqMhz = 2550 });
+        Assert.Equal(2550, NewVm(read).GpuAmdMaxVramFreqMhz);
+
+        var readFail = new FakeGpuOcService(AmdVramStatus(), current: null);
+        Assert.Equal(2400, NewVm(readFail).GpuAmdMaxVramFreqMhz);   // startup default, never a stray 0
+    }
+
+    [Fact]
+    public async Task ApplyGpuOc_PassesTheAmdMaxVramFreqThroughTheProfile()
+    {
+        var oc = new FakeGpuOcService(AmdVramStatus());
+        var vm = NewVm(oc);
+        vm.GpuAmdMaxVramFreqMhz = 2500;
+
+        await vm.ApplyGpuOcCommand.ExecuteAsync(null);
+
+        Assert.Single(oc.Applied);
+        Assert.Equal(2500, oc.Applied[0].AmdMaxVramFreqMhz);
+    }
+
     [Fact]
     public async Task ResetOc_StaysAvailableOnConfiguredFree_SoAnOcCanAlwaysBeUndone()
     {
@@ -406,5 +535,203 @@ public class OverclockingViewModelTests
 
         Assert.Equal(1, oc.ResetCount);                           // reset reached the backend despite Free
         Assert.Equal(0, vm.GpuCoreOffsetMhz);
+    }
+
+    // ---- Phase 2a: an overclock is journaled like every other system change ----
+
+    [Fact]
+    public async Task ApplyGpuOc_RecordsAJournalEntry_SoTheOverclockIsVisibleInWhatChanged()
+    {
+        var journal = new RecordingApplyJournal();
+        var vm = NewVm(journal: journal);
+        vm.GpuCoreOffsetMhz = 120;
+
+        await vm.ApplyGpuOcCommand.ExecuteAsync(null);
+
+        Assert.Single(journal.Entries);
+        Assert.Equal("Application", journal.Entries[0].Action);
+        Assert.Equal(1, journal.Entries[0].Succeeded);
+        Assert.Contains("GPU OC", journal.Entries[0].TweakIds[0]);
+    }
+
+    [Fact]
+    public async Task ResetOc_RecordsARestaurationJournalEntry()
+    {
+        var journal = new RecordingApplyJournal();
+        var vm = NewVm(journal: journal);
+
+        await vm.ResetOcCommand.ExecuteAsync(null);
+
+        Assert.Single(journal.Entries);
+        Assert.Equal("Restauration", journal.Entries[0].Action);
+    }
+
+    // ---- Phase 2b: auto-revert safety net arms ONLY on risky (frequency) changes ----
+
+    [Fact]
+    public async Task ApplyGpuOc_FrequencyChange_ArmsTheAutoRevertCountdown()
+    {
+        var vm = NewVm();
+        vm.GpuCoreOffsetMhz = 150;   // a frequency axis changed vs stock → can black-screen → net armed
+
+        await vm.ApplyGpuOcCommand.ExecuteAsync(null);
+
+        Assert.True(vm.AutoRevertActive);
+        Assert.Contains("Conserver", vm.AutoRevertLabel);
+    }
+
+    [Fact]
+    public async Task ApplyGpuOc_PowerOnlyChange_DoesNotArmAutoRevert()
+    {
+        // Power is bounded by the card window and can't hang the display → no countdown (would be noise).
+        var vm = NewVm();
+        vm.GpuCoreOffsetMhz = 0; vm.GpuMemOffsetMhz = 0;
+        vm.GpuPowerLimitPct = 130;
+
+        await vm.ApplyGpuOcCommand.ExecuteAsync(null);
+
+        Assert.False(vm.AutoRevertActive);
+    }
+
+    [Fact]
+    public async Task ConfirmKeepOc_DisarmsTheAutoRevert()
+    {
+        var vm = NewVm();
+        vm.GpuCoreOffsetMhz = 150;
+        await vm.ApplyGpuOcCommand.ExecuteAsync(null);
+        Assert.True(vm.AutoRevertActive);
+
+        vm.ConfirmKeepOcCommand.Execute(null);
+
+        Assert.False(vm.AutoRevertActive);
+        Assert.Contains("conservés", vm.AutoOcStatus);
+    }
+
+    [Fact]
+    public async Task TriggerAutoRevert_ReAppliesTheCapturedPreviousProfile()
+    {
+        // Previous on-card state is core +100; the user pushes core +250 (risky) → the timeout must
+        // re-apply the previous +100, never leave the unstable +250.
+        var oc = new FakeGpuOcService(current: new GpuOcProfile(100, 0, 100, 83, 0));
+        var vm = NewVm(oc);
+        vm.GpuCoreOffsetMhz = 250;
+        await vm.ApplyGpuOcCommand.ExecuteAsync(null);
+        Assert.True(vm.AutoRevertActive);
+
+        await vm.TriggerAutoRevertAsync();
+
+        Assert.False(vm.AutoRevertActive);
+        Assert.Equal(100, oc.Applied[^1].CoreOffsetMhz);   // last write to the card is the reverted profile
+    }
+
+    [Fact]
+    public async Task TriggerAutoRevert_NoPreviousRead_FallsBackToReset()
+    {
+        // The pre-apply read was unavailable (fake returns null) → the safe revert is a Reset to stock.
+        var oc = new FakeGpuOcService(current: null);
+        var vm = NewVm(oc);
+        vm.GpuCoreOffsetMhz = 250;
+        await vm.ApplyGpuOcCommand.ExecuteAsync(null);
+        Assert.True(vm.AutoRevertActive);
+
+        await vm.TriggerAutoRevertAsync();
+
+        Assert.Equal(1, oc.ResetCount);   // reverted via Reset, not a re-apply of an unknown state
+    }
+
+    // ---- Phase 2c: live observed GPU effect (not just the written setting) ----
+
+    [Fact]
+    public void LiveEffect_ReflectsTheMonitoringSnapshot_AndShowsDashForUnreadSensors()
+    {
+        var monitoring = new FakeMonitoringService();
+        var vm = NewVm(monitoring: monitoring);
+
+        monitoring.Push(new MonitoringSnapshot { GpuClockMhz = 2790, GpuTempC = 64, GpuUsagePercent = 98 });
+
+        Assert.Equal(2790, vm.LiveGpuClockMhz);
+        Assert.Contains("2790 MHz", vm.LiveEffectLabel);
+        Assert.Contains("64 °C", vm.LiveEffectLabel);
+
+        monitoring.Push(new MonitoringSnapshot());   // all sensors unread → never a fabricated 0
+        Assert.Contains("—", vm.LiveEffectLabel);
+    }
+
+    // ---- Phase 3: integrated GPU stability test (real load + verdict) ----
+
+    [Fact]
+    public void RunStabilityTest_NoGpuLoadAvailable_FallsBackToHonestReferral_NeverFakesARun()
+    {
+        var vm = NewVm(stress: new FakeGpuStressLoad { Available = false });
+
+        vm.RunStabilityTestCommand.Execute(null);
+
+        Assert.False(vm.StabilityTestRunning);
+        Assert.Contains("indisponible", vm.StressTestProgress);
+        Assert.Contains("FurMark", vm.StressTestProgress);   // honest referral, no fabricated verdict
+    }
+
+    [Fact]
+    public async Task StabilityRun_CollectsSamples_ThenClassifies_AndStopsTheLoad()
+    {
+        var stress = new FakeGpuStressLoad { Available = true };
+        var monitoring = new FakeMonitoringService();
+        var vm = NewVm(monitoring: monitoring, stress: stress, tdr: new StubGpuTdrProbe(tdrObserved: false));
+
+        vm.RunStabilityTestCommand.Execute(null);
+        Assert.True(vm.StabilityTestRunning);
+        Assert.Equal(1, stress.StartCount);
+
+        // Feed a healthy load telemetry stream while the run is active.
+        for (int i = 0; i < 10; i++)
+            monitoring.Push(new MonitoringSnapshot { GpuClockMhz = 2800 + (i % 3), GpuTempC = 70, GpuUsagePercent = 99 });
+
+        await vm.FinishStabilityRunAsync();
+
+        Assert.False(vm.StabilityTestRunning);
+        Assert.Equal(1, stress.StopCount);                    // the real GPU load was stopped
+        Assert.Contains("Stable", vm.StressTestProgress);     // healthy stream → stable verdict
+    }
+
+    [Fact]
+    public async Task StabilityRun_DriverResetDetected_ReportsCrashed_NotStable()
+    {
+        var stress = new FakeGpuStressLoad { Available = true };
+        var monitoring = new FakeMonitoringService();
+        // The TDR probe reports a driver reset in the window → the run is unstable regardless of telemetry.
+        var vm = NewVm(monitoring: monitoring, stress: stress, tdr: new StubGpuTdrProbe(tdrObserved: true));
+
+        vm.RunStabilityTestCommand.Execute(null);
+        for (int i = 0; i < 10; i++)
+            monitoring.Push(new MonitoringSnapshot { GpuClockMhz = 2800, GpuTempC = 70, GpuUsagePercent = 99 });
+
+        await vm.FinishStabilityRunAsync();
+
+        Assert.Contains("reset du driver", vm.StressTestProgress);
+    }
+
+    // ---- Phase 3: fan control wiring ----
+
+    [Fact]
+    public async Task FanControl_Available_LoadsStatus_AndApplyFloorsBelowTheSafetyMinimum()
+    {
+        var fan = new FakeGpuFanService(new GpuFanStatus(true, GpuVendor.Nvidia, 45, 1500, "ventilateur actif"));
+        var vm = NewVm(fan: fan);
+
+        Assert.True(vm.FanAvailable);        // LoadAsync ran synchronously in the ctor (fakes are completed tasks)
+        Assert.Equal(45, vm.GpuFanPercent);  // prefilled from the real current %
+        Assert.Equal(1500, vm.FanRpm);
+
+        vm.GpuFanPercent = 5;                // below the hard floor
+        await vm.SetFanManualCommand.ExecuteAsync(null);
+
+        Assert.Equal(GpuFanSafety.HardFloorPercent, fan.ManualWrites[^1]);   // floored, never reaches the card as 5
+    }
+
+    [Fact]
+    public void FanControl_Unavailable_HidesTheCard()
+    {
+        var vm = NewVm(fan: new FakeGpuFanService(new GpuFanStatus(false, GpuVendor.Amd, 0, 0, "→ Adrenalin")));
+        Assert.False(vm.FanAvailable);       // the view collapses the whole fan card on this
     }
 }

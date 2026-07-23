@@ -44,6 +44,8 @@
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="220"/>
@@ -81,6 +83,24 @@
                         <TextBlock Grid.Row="4" Grid.Column="0" Text="Cible voltage — undervolt (via Afterburner)" Style="{StaticResource Text.Body}" VerticalAlignment="Center" Margin="0,14,0,0"/>
                         <Slider Grid.Row="4" Grid.Column="1" Minimum="800" Maximum="1100" Value="{Binding GpuTargetVoltageMv}" VerticalAlignment="Center" Margin="0,14,12,0"/>
                         <TextBlock Grid.Row="4" Grid.Column="2" Text="{Binding GpuTargetVoltageMv, StringFormat={}{0} mV}" Style="{StaticResource Text.Gold}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,14,0,0"/>
+
+                        <!-- AMD GPU max frequency (ADLX Tuning2, RDNA+): the whole row exists ONLY when the
+                             native GFX backend passed its on-card verification — same no-dead-control /
+                             no-hidden-write contract as the temp row. Bounds are the driver's own window. -->
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Fréquence GPU max (AMD)" Style="{StaticResource Text.Body}" VerticalAlignment="Center" Margin="0,14,0,0"
+                                   Visibility="{Binding GfxTuningNative, Converter={StaticResource BoolToVisibility}}"/>
+                        <Slider Grid.Row="5" Grid.Column="1" Minimum="{Binding GfxSliderMinMhz}" Maximum="{Binding GfxSliderMaxMhz}" Value="{Binding GpuAmdMaxFreqMhz}" VerticalAlignment="Center" Margin="0,14,12,0"
+                                Visibility="{Binding GfxTuningNative, Converter={StaticResource BoolToVisibility}}"/>
+                        <TextBlock Grid.Row="5" Grid.Column="2" Text="{Binding GpuAmdMaxFreqMhz, StringFormat={}{0} MHz}" Style="{StaticResource Text.Gold}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,14,0,0"
+                                   Visibility="{Binding GfxTuningNative, Converter={StaticResource BoolToVisibility}}"/>
+
+                        <!-- AMD memory max frequency (ADLX VRAM Tuning2): same verified-only contract. -->
+                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Fréquence mémoire max (AMD)" Style="{StaticResource Text.Body}" VerticalAlignment="Center" Margin="0,14,0,0"
+                                   Visibility="{Binding VramTuningNative, Converter={StaticResource BoolToVisibility}}"/>
+                        <Slider Grid.Row="6" Grid.Column="1" Minimum="{Binding VramSliderMinMhz}" Maximum="{Binding VramSliderMaxMhz}" Value="{Binding GpuAmdMaxVramFreqMhz}" VerticalAlignment="Center" Margin="0,14,12,0"
+                                Visibility="{Binding VramTuningNative, Converter={StaticResource BoolToVisibility}}"/>
+                        <TextBlock Grid.Row="6" Grid.Column="2" Text="{Binding GpuAmdMaxVramFreqMhz, StringFormat={}{0} MHz}" Style="{StaticResource Text.Gold}" VerticalAlignment="Center" HorizontalAlignment="Right" Margin="0,14,0,0"
+                                   Visibility="{Binding VramTuningNative, Converter={StaticResource BoolToVisibility}}"/>
                     </Grid>
 
                     <!-- Honesty: names exactly which axes the native backend applies on this card (core/mem
@@ -91,11 +111,50 @@
                     <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
                         <Button Content="Appliquer profil" Style="{StaticResource Button.Primary}" Command="{Binding ApplyGpuOcCommand}" Margin="0,0,8,0"/>
                         <Button Content="Suggérer un palier prudent" Style="{StaticResource Button.Secondary}" Command="{Binding RunAutoOcCommand}" Margin="0,0,8,0"/>
-                        <Button Content="Comment valider la stabilité ?" Style="{StaticResource Button.Tertiary}" Command="{Binding RunStabilityTestCommand}" Margin="0,0,8,0"/>
+                        <Button Content="Test de stabilité GPU" Style="{StaticResource Button.Tertiary}" Command="{Binding RunStabilityTestCommand}" Margin="0,0,8,0"/>
                         <Button Content="Reset" Style="{StaticResource Button.Ghost}" Command="{Binding ResetOcCommand}"/>
                     </StackPanel>
                     <TextBlock Text="{Binding AutoOcStatus}" Style="{StaticResource Text.Muted}" Margin="0,14,0,0"/>
+
+                    <!-- Auto-revert safety net (Phase 2b): shown only while the post-apply countdown runs after a
+                         risky frequency change. States the automatic outcome up front; « Conserver » cancels it. -->
+                    <Border Background="{StaticResource Brush.Gold.Subtle}" CornerRadius="6" Padding="12,8" Margin="0,12,0,0"
+                            Visibility="{Binding AutoRevertActive, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding AutoRevertLabel}" Style="{StaticResource Text.Body}" VerticalAlignment="Center" TextWrapping="Wrap"/>
+                            <Button Content="Conserver" Style="{StaticResource Button.Primary}" Command="{Binding ConfirmKeepOcCommand}" Margin="12,0,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Live observed effect (Phase 2c): the real sensor readout, so an « Appliqué » can be
+                         corroborated by the measured clock/temp, not just the setting that was written. -->
+                    <TextBlock Text="{Binding LiveEffectLabel}" Style="{StaticResource Text.Mono}" Margin="0,10,0,0" Foreground="{StaticResource Brush.Gold.Bright}"/>
+
                     <TextBlock Text="{Binding StressTestProgress}" Style="{StaticResource Text.Mono}" Margin="0,4,0,0" Foreground="{StaticResource Brush.Gold.Bright}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Fan control (Phase 3): the whole card exists ONLY when a native fan backend is available
+                 (NVIDIA/NVAPI, verified on-card). No dead control when there's nothing to drive. -->
+            <Border Style="{StaticResource Card}" Visibility="{Binding FanAvailable, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Text="Ventilateur GPU" Style="{StaticResource Text.H3}" Margin="0,0,0,8"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="220"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="120"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Vitesse manuelle" Style="{StaticResource Text.Body}" VerticalAlignment="Center"/>
+                        <Slider Grid.Column="1" Minimum="20" Maximum="100" Value="{Binding GpuFanPercent}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <TextBlock Grid.Column="2" Text="{Binding GpuFanPercent, StringFormat={}{0} %}" Style="{StaticResource Text.Gold}" VerticalAlignment="Center" HorizontalAlignment="Right"/>
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <Button Content="Appliquer" Style="{StaticResource Button.Primary}" Command="{Binding SetFanManualCommand}" Margin="0,0,8,0"/>
+                        <Button Content="Auto (courbe driver)" Style="{StaticResource Button.Ghost}" Command="{Binding SetFanAutoCommand}"/>
+                        <TextBlock Text="{Binding FanRpm, StringFormat={}{0} tr/min}" Style="{StaticResource Text.Gold}" VerticalAlignment="Center" Margin="16,0,0,0"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding FanStatusMessage}" Style="{StaticResource Text.Muted}" TextWrapping="Wrap" Margin="0,12,0,0"/>
                 </StackPanel>
             </Border>
 

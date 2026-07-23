@@ -128,6 +128,49 @@ public class GpuOcDisclosureTests
     }
 
     [Fact]
+    public void SlidersNote_AmdPowerAndGfxNative_ClaimsBothViaAdlx_NoUndocumentedCaveat()
+    {
+        // AMD card with both ADLX axes verified: power limit + GPU max frequency, both documented.
+        var note = GpuOcDisclosure.SlidersNote(offsetsNative: false, GpuPowerBackendKind.AdlxDocumented,
+                                               tempNative: false, gfxNative: true);
+        Assert.Contains("power limit", note);
+        Assert.Contains("fréquence GPU max", note);
+        Assert.Contains("ADLX", note);
+        Assert.Contains("officielle", note);
+        Assert.Contains("relecture", note);
+        Assert.DoesNotContain("pas documentée", note);      // ADLX is documented — never painted otherwise
+        Assert.Contains("offsets core/mémoire", note);       // NVIDIA-style offsets referred to Adrenalin
+        Assert.Contains("voltage", note);
+    }
+
+    [Fact]
+    public void SlidersNote_AmdPowerGfxAndVram_ClaimsAllThreeViaAdlx()
+    {
+        // Full AMD card: power limit + GPU max freq + memory max freq, all documented ADLX axes.
+        var note = GpuOcDisclosure.SlidersNote(offsetsNative: false, GpuPowerBackendKind.AdlxDocumented,
+                                               tempNative: false, gfxNative: true, vramNative: true);
+        Assert.Contains("power limit", note);
+        Assert.Contains("fréquence GPU max", note);
+        Assert.Contains("fréquence mémoire max", note);
+        Assert.Contains("ADLX", note);
+        Assert.Contains("relecture", note);
+        Assert.DoesNotContain("pas documentée", note);
+    }
+
+    [Fact]
+    public void SlidersNote_AmdGfxOnly_ClaimsFrequency_DisownsPower()
+    {
+        // A card that supports GFX tuning but not power tuning: frequency is native, power is disowned.
+        var note = GpuOcDisclosure.SlidersNote(offsetsNative: false, GpuPowerBackendKind.None,
+                                               tempNative: false, gfxNative: true);
+        Assert.Contains("fréquence GPU max", note);          // applied via ADLX
+        Assert.Contains("ADLX", note);
+        Assert.Contains("relecture", note);
+        Assert.Contains("power limit", note);                // disowned in the Non-appliqué clause
+        Assert.DoesNotContain("pas documentée", note);
+    }
+
+    [Fact]
     public void SlidersNote_NoBackendAtAll_ClaimsNothing()
     {
         var note = GpuOcDisclosure.SlidersNote(offsetsNative: false, GpuPowerBackendKind.None, tempNative: false);

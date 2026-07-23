@@ -1,7 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using AurumTweaks.Models;
 using AurumTweaks.Services;
+using AurumTweaks.Services.Interop;
 
 namespace AurumTweaks.Tests;
 
@@ -867,4 +869,199 @@ public sealed class FakeEvidenceStore : IEvidenceStore
 
     public BenchmarkComparison? LoadPerformance() => Stored;
     public void SavePerformance(BenchmarkComparison? comparison) { Stored = comparison; SaveCount++; }
+}
+
+/// <summary>
+/// In-memory <see cref="INvApi"/> — the seam that lets GpuOcService's NVIDIA orchestration be driven
+/// deterministically (multi-axis apply, partial-failure honesty, read-back) with NO real card. Reads
+/// return the configured window/values; writes record their target and succeed unless told to fail.
+/// Handle is a non-zero sentinel (the service only checks it against IntPtr.Zero).
+/// </summary>
+public sealed class FakeNvApi : INvApi
+{
+    public bool Present { get; set; }
+    public string Name { get; set; } = "Fake NVIDIA";
+
+    public bool OffsetsReadable { get; set; } = true;
+    public int OffCore, OffMem;
+    public bool OffsetWriteOk { get; set; } = true;
+    public string OffsetError { get; set; } = "offsets refusés (simulé)";
+
+    public bool PowerReadable { get; set; }
+    public int PMin, PDef, PMax, PCur;
+    public bool PowerWriteOk { get; set; } = true;
+    public string PowerError { get; set; } = "power refusé (simulé)";
+
+    public bool ThermReadable { get; set; }
+    public int TMin, TDef, TMax, TCur;
+    public bool ThermWriteOk { get; set; } = true;
+    public string ThermError { get; set; } = "température refusée (simulé)";
+
+    public List<(int core, int mem)> OffsetWrites { get; } = new();
+    public List<int> PowerWrites { get; } = new();
+    public List<int> ThermWrites { get; } = new();
+
+    private static readonly IntPtr Handle = new(0x4080);
+
+    public bool TryGetFirstGpu(out IntPtr gpu, out string name)
+    {
+        gpu = Present ? Handle : IntPtr.Zero;
+        name = Name;
+        return Present;
+    }
+
+    public bool TryReadOffsets(IntPtr gpu, out int coreMhz, out int memMhz)
+    {
+        coreMhz = OffCore; memMhz = OffMem;
+        return OffsetsReadable;
+    }
+
+    public bool TrySetOffsets(IntPtr gpu, int coreMhz, int memMhz, out string error)
+    {
+        OffsetWrites.Add((coreMhz, memMhz));
+        error = OffsetWriteOk ? string.Empty : OffsetError;
+        return OffsetWriteOk;
+    }
+
+    public bool TryReadPowerInfo(IntPtr gpu, out int minPcm, out int defPcm, out int maxPcm)
+    {
+        minPcm = PMin; defPcm = PDef; maxPcm = PMax;
+        return PowerReadable;
+    }
+
+    public bool TryReadPowerTarget(IntPtr gpu, out int currentPcm)
+    {
+        currentPcm = PCur;
+        return PowerReadable;
+    }
+
+    public bool TrySetPowerTarget(IntPtr gpu, int targetPcm, out string error)
+    {
+        PowerWrites.Add(targetPcm);
+        error = PowerWriteOk ? string.Empty : PowerError;
+        return PowerWriteOk;
+    }
+
+    public bool TryReadThermalInfo(IntPtr gpu, out int minRaw, out int defRaw, out int maxRaw)
+    {
+        minRaw = TMin; defRaw = TDef; maxRaw = TMax;
+        return ThermReadable;
+    }
+
+    public bool TryReadThermalLimit(IntPtr gpu, out int currentRaw)
+    {
+        currentRaw = TCur;
+        return ThermReadable;
+    }
+
+    public bool TrySetThermalLimit(IntPtr gpu, int targetRaw, out string error)
+    {
+        ThermWrites.Add(targetRaw);
+        error = ThermWriteOk ? string.Empty : ThermError;
+        return ThermWriteOk;
+    }
+
+    public bool FanReadable { get; set; }
+    public int FanLevelPct, FanRpm;
+    public bool FanWriteOk { get; set; } = true;
+    public string FanError { get; set; } = "ventilateur refusé (simulé)";
+    public List<int> FanManualWrites { get; } = new();
+    public int FanAutoCount { get; private set; }
+
+    public bool TryReadFanStatus(IntPtr gpu, out int levelPct, out int rpm)
+    {
+        levelPct = FanLevelPct; rpm = FanRpm;
+        return FanReadable;
+    }
+
+    public bool TrySetFanManual(IntPtr gpu, int requestedPct, out string error)
+    {
+        FanManualWrites.Add(requestedPct);
+        error = FanWriteOk ? string.Empty : FanError;
+        return FanWriteOk;
+    }
+
+    public bool TrySetFanAuto(IntPtr gpu, out string error)
+    {
+        FanAutoCount++;
+        error = FanWriteOk ? string.Empty : FanError;
+        return FanWriteOk;
+    }
+}
+
+/// <summary>
+/// In-memory <see cref="IAdlxApi"/> — the seam for GpuOcService's AMD orchestration. <see cref="Info"/>
+/// drives the per-axis support gates; the *Readable flags + values drive verification and reads; the
+/// *WriteOk flags + recorded lists drive apply/reset and the partial-failure honesty paths. A read
+/// returns the configured bool verbatim (the real gate/coherence check is unit-tested separately in the
+/// pure-core tests), so a test just sets coherent windows.
+/// </summary>
+public sealed class FakeAdlxApi : IAdlxApi
+{
+    public bool InfoAvailable { get; set; } = true;
+    public AdlxGpuInfo Info { get; set; } = new("Radeon Test", false, false, false, false);
+
+    public bool PowerReadable { get; set; }
+    public int PowerCur, PowerMin, PowerMax, PowerStep = 1;
+    public bool PowerWriteOk { get; set; } = true;
+    public string PowerError { get; set; } = "power AMD refusé (simulé)";
+
+    public bool GfxReadable { get; set; }
+    public int GfxCur, GfxMin, GfxMax, GfxStep = 1;
+    public bool GfxWriteOk { get; set; } = true;
+    public string GfxError { get; set; } = "fréquence GPU AMD refusée (simulé)";
+
+    public bool VramReadable { get; set; }
+    public int VramCur, VramMin, VramMax, VramStep = 1;
+    public bool VramWriteOk { get; set; } = true;
+    public string VramError { get; set; } = "fréquence mémoire AMD refusée (simulé)";
+
+    public List<int> PowerWrites { get; } = new();
+    public List<int> GfxWrites { get; } = new();
+    public List<int> VramWrites { get; } = new();
+
+    public bool TryGetFirstGpuInfo(out AdlxGpuInfo info)
+    {
+        info = Info;
+        return InfoAvailable;
+    }
+
+    public bool TryReadPowerLimit(out int currentPct, out int minPct, out int maxPct, out int stepPct)
+    {
+        currentPct = PowerCur; minPct = PowerMin; maxPct = PowerMax; stepPct = PowerStep;
+        return PowerReadable;
+    }
+
+    public bool TrySetPowerLimit(int targetPct, out string error)
+    {
+        PowerWrites.Add(targetPct);
+        error = PowerWriteOk ? string.Empty : PowerError;
+        return PowerWriteOk;
+    }
+
+    public bool TryReadGfxMaxFreq(out int currentMhz, out int minMhz, out int maxMhz, out int stepMhz)
+    {
+        currentMhz = GfxCur; minMhz = GfxMin; maxMhz = GfxMax; stepMhz = GfxStep;
+        return GfxReadable;
+    }
+
+    public bool TrySetGfxMaxFreq(int targetMhz, out string error)
+    {
+        GfxWrites.Add(targetMhz);
+        error = GfxWriteOk ? string.Empty : GfxError;
+        return GfxWriteOk;
+    }
+
+    public bool TryReadVramMaxFreq(out int currentMhz, out int minMhz, out int maxMhz, out int stepMhz)
+    {
+        currentMhz = VramCur; minMhz = VramMin; maxMhz = VramMax; stepMhz = VramStep;
+        return VramReadable;
+    }
+
+    public bool TrySetVramMaxFreq(int targetMhz, out string error)
+    {
+        VramWrites.Add(targetMhz);
+        error = VramWriteOk ? string.Empty : VramError;
+        return VramWriteOk;
+    }
 }
