@@ -151,6 +151,7 @@ public partial class App : Application
         services.AddSingleton<IServiceControlService, ServiceControlService>();
         services.AddSingleton<IVisualEffectsService, VisualEffectsService>();
         services.AddSingleton<IMemoryManagementService, MemoryManagementService>();
+        services.AddSingleton<IMemoryAutoCleanStore, MemoryAutoCleanStore>();
         services.AddSingleton<IPrivacyService, PrivacyService>();
         services.AddSingleton<IGameOptiService, GameOptiService>();
         services.AddSingleton<IRestoreManagerService, RestoreManagerService>();

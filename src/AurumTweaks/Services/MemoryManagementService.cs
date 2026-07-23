@@ -156,6 +156,96 @@ public static class MemoryAdvice
     }
 }
 
+/// <summary>When the optional auto-clean fires a flush by itself (the Mem Reduct-style feature).</summary>
+public enum MemoryAutoCleanTrigger
+{
+    /// <summary>Never — the honest default. Auto-clean does nothing until the user opts in.</summary>
+    Off,
+    /// <summary>Every N minutes, unconditionally.</summary>
+    Interval,
+    /// <summary>When memory pressure (in-use %) reaches a ceiling.</summary>
+    Threshold,
+    /// <summary>Either the interval elapsed OR the pressure ceiling was reached.</summary>
+    Both
+}
+
+/// <summary>
+/// User settings for « auto-nettoyage » — the opt-in, Mem Reduct-style feature that fires a real memory flush
+/// automatically on an interval and/or when memory pressure crosses a ceiling. Off by default and deliberately so:
+/// repeatedly purging the standby cache usually buys nothing (Windows rebuilds it) and can cost a little at the next
+/// access, so this is a tool for specific moments — not a "RAM booster" left running to fabricate a benefit. The value
+/// ranges are clamped by <see cref="Normalized"/> so a hand-edited JSON can't push an absurd threshold/interval.
+/// </summary>
+public sealed record MemoryAutoCleanSettings(
+    bool Enabled,
+    MemoryAutoCleanTrigger Trigger,
+    int ThresholdPercent,
+    int IntervalMinutes,
+    MemoryFlushKind Kind)
+{
+    /// <summary>Disabled, threshold-at-85 %, 30-minute interval, standby purge (the least aggressive flush).</summary>
+    public static MemoryAutoCleanSettings Default { get; } =
+        new(false, MemoryAutoCleanTrigger.Threshold, 85, 30, MemoryFlushKind.StandbyList);
+
+    /// <summary>Clamp threshold/interval into the supported ranges. Pure, so a corrupt persisted value degrades to a sane one.</summary>
+    public MemoryAutoCleanSettings Normalized() => this with
+    {
+        ThresholdPercent = Math.Clamp(ThresholdPercent, MemoryAutoClean.MinThresholdPercent, MemoryAutoClean.MaxThresholdPercent),
+        IntervalMinutes = Math.Clamp(IntervalMinutes, MemoryAutoClean.MinIntervalMinutes, MemoryAutoClean.MaxIntervalMinutes),
+    };
+}
+
+/// <summary>
+/// The pure auto-clean decision: whether the optional auto-clean should fire NOW, given the live composition, the
+/// user's settings, and how long since the last clean. Side-effect-free so the load-bearing safety rules — never fire
+/// while disabled/off, never act on an unreadable composition (no guessing), and never hammer the kernel on a sustained
+/// high-memory state — are unit-pinned without a timer or a live machine.
+/// </summary>
+public static class MemoryAutoClean
+{
+    public const int MinThresholdPercent = 50;   // below this a "pressure" clean would fire almost always — meaningless
+    public const int MaxThresholdPercent = 99;
+    public const int MinIntervalMinutes = 1;
+    public const int MaxIntervalMinutes = 720;   // 12 h — a generous upper bound for a background convenience
+
+    /// <summary>A threshold-triggered clean still honours a minimum gap so a sustained high-memory state can't fire a
+    /// flush on every sample. One minute is well under any useful interval, so it never blocks a legitimate clean.</summary>
+    public const double ThresholdCooldownMinutes = 1.0;
+
+    public static bool ShouldClean(MemoryAutoCleanSettings settings, MemoryComposition composition, double minutesSinceLastClean)
+    {
+        if (settings is null || !settings.Enabled || settings.Trigger == MemoryAutoCleanTrigger.Off) return false;
+        if (!composition.HasData) return false;   // no reading ⇒ never fire on a guess (honesty over a fabricated action)
+
+        var s = settings.Normalized();
+        bool intervalArmed = s.Trigger is MemoryAutoCleanTrigger.Interval or MemoryAutoCleanTrigger.Both;
+        bool thresholdArmed = s.Trigger is MemoryAutoCleanTrigger.Threshold or MemoryAutoCleanTrigger.Both;
+
+        bool intervalHit = intervalArmed && minutesSinceLastClean >= s.IntervalMinutes;
+        bool thresholdHit = thresholdArmed
+            && composition.InUsePercent >= s.ThresholdPercent
+            && minutesSinceLastClean >= ThresholdCooldownMinutes;
+
+        return intervalHit || thresholdHit;
+    }
+
+    /// <summary>Honest one-line summary of the active policy for the page (French). Off is stated plainly.</summary>
+    public static string Describe(MemoryAutoCleanSettings settings)
+    {
+        if (settings is null || !settings.Enabled || settings.Trigger == MemoryAutoCleanTrigger.Off)
+            return "Auto-nettoyage désactivé.";
+
+        var s = settings.Normalized();
+        return s.Trigger switch
+        {
+            MemoryAutoCleanTrigger.Interval => $"Auto-nettoyage : « {MemoryFlushCatalog.Label(s.Kind)} » toutes les {s.IntervalMinutes} min.",
+            MemoryAutoCleanTrigger.Threshold => $"Auto-nettoyage : « {MemoryFlushCatalog.Label(s.Kind)} » quand la mémoire utilisée dépasse {s.ThresholdPercent} %.",
+            MemoryAutoCleanTrigger.Both => $"Auto-nettoyage : « {MemoryFlushCatalog.Label(s.Kind)} » toutes les {s.IntervalMinutes} min ou au-delà de {s.ThresholdPercent} % utilisés.",
+            _ => "Auto-nettoyage désactivé."
+        };
+    }
+}
+
 /// <summary>
 /// Native glue for the memory page — fully guarded so any failure degrades to an honest "indisponible" / "échoué"
 /// rather than a fabricated number. Reads the page lists by explicit offset (the x64 SYSTEM_MEMORY_LIST_INFORMATION

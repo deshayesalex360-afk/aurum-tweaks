@@ -114,6 +114,74 @@
                 </StackPanel>
             </Border>
 
+            <!-- Auto-nettoyage (façon Mem Reduct) -->
+            <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                            <TextBlock Text="Auto-nettoyage" Style="{StaticResource Text.H3}"/>
+                            <TextBlock Style="{StaticResource Text.Secondary}" Margin="0,6,0,0" TextWrapping="Wrap"
+                                       Text="Comme Mem Reduct : Aurum peut lancer un vidage tout seul — à intervalle et/ou quand la mémoire utilisée dépasse un seuil. C'est la MÊME commande noyau, mesurée, que les boutons ci-dessus. Désactivé par défaut et honnête : purger le cache standby en boucle n'apporte généralement rien (Windows le reconstruit aussitôt) et peut coûter une micro-latence au rechargement. À réserver aux machines qui saturent réellement — ce n'est pas un gain de FPS."/>
+                        </StackPanel>
+                        <CheckBox Grid.Column="1" Style="{StaticResource Toggle.Aurum}" VerticalAlignment="Center"
+                                  IsChecked="{Binding AutoCleanEnabled}"/>
+                    </Grid>
+
+                    <!-- Réglages : inertes tant que l'auto-nettoyage est désactivé (pas de bouton mort, juste grisé) -->
+                    <StackPanel Margin="0,18,0,0" IsEnabled="{Binding AutoCleanEnabled}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="190"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Déclencheur" Style="{StaticResource Text.Body}" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Row="0" Grid.Column="1" HorizontalAlignment="Left" Width="280"
+                                      ItemsSource="{Binding AutoCleanTriggerOptions}" DisplayMemberPath="Label"
+                                      SelectedValuePath="Value" SelectedValue="{Binding AutoCleanTrigger}"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Seuil (mémoire utilisée)" Style="{StaticResource Text.Body}" VerticalAlignment="Center" Margin="0,14,0,0"/>
+                            <Grid Grid.Row="1" Grid.Column="1" Margin="0,14,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="56"/>
+                                </Grid.ColumnDefinitions>
+                                <Slider Grid.Column="0" Minimum="50" Maximum="99" Value="{Binding ThresholdPercent}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                                <TextBlock Grid.Column="1" Style="{StaticResource Text.Body}" TextAlignment="Right" VerticalAlignment="Center"
+                                           Text="{Binding ThresholdPercent, StringFormat={}{0} %}"/>
+                            </Grid>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Intervalle" Style="{StaticResource Text.Body}" VerticalAlignment="Center" Margin="0,14,0,0"/>
+                            <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" Margin="0,14,0,0">
+                                <ComboBox Width="90" ItemsSource="{Binding AutoCleanIntervalOptions}" SelectedItem="{Binding IntervalMinutes}"/>
+                                <TextBlock Text="minutes" Style="{StaticResource Text.Muted}" VerticalAlignment="Center" Margin="10,0,0,0"/>
+                            </StackPanel>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="Action" Style="{StaticResource Text.Body}" VerticalAlignment="Center" Margin="0,14,0,0"/>
+                            <ComboBox Grid.Row="3" Grid.Column="1" HorizontalAlignment="Left" Width="280" Margin="0,14,0,0"
+                                      ItemsSource="{Binding AutoCleanKindOptions}" DisplayMemberPath="Label"
+                                      SelectedValuePath="Value" SelectedValue="{Binding AutoCleanKind}"/>
+                        </Grid>
+
+                        <TextBlock Style="{StaticResource Text.Muted}" Margin="0,14,0,0" TextWrapping="Wrap" FontSize="11"
+                                   Text="Le seuil s'applique aux modes « seuil » ; l'intervalle aux modes « intervalle ». Un déclenchement au seuil respecte un délai minimum d'une minute pour ne pas s'enchaîner."/>
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding AutoCleanPolicy}" Style="{StaticResource Text.Gold}" Margin="0,16,0,0" TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding AutoCleanStatus}" Style="{StaticResource Text.Muted}" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+
             <!-- Native complements -->
             <Border Style="{StaticResource Card.Subtle}" Margin="0,16,0,0">
                 <StackPanel>

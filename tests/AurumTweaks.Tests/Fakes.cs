@@ -1065,3 +1065,27 @@ public sealed class FakeAdlxApi : IAdlxApi
         return VramWriteOk;
     }
 }
+
+/// <summary>
+/// In-memory « Mémoire vive » service: returns a scripted composition and records every flush (count + last kind),
+/// so the auto-clean decision in <c>MemoryViewModel.EvaluateAutoCleanAsync</c> can be driven with no real kernel call.
+/// </summary>
+public sealed class FakeMemoryManagementService : IMemoryManagementService
+{
+    /// <summary>The composition every read returns (set per test to model memory pressure).</summary>
+    public MemoryComposition NextComposition { get; set; } =
+        new(16L * 1024 * 1024 * 1024, 8L * 1024 * 1024 * 1024, 0, 0, 0, DetailAvailable: false);
+
+    public int FlushCount { get; private set; }
+    public MemoryFlushKind? LastFlushKind { get; private set; }
+
+    public Task<MemoryComposition> GetCompositionAsync() => Task.FromResult(NextComposition);
+
+    public Task<MemoryFlushOutcome> FlushAsync(MemoryFlushKind kind)
+    {
+        FlushCount++;
+        LastFlushKind = kind;
+        // A believable measured outcome; the tests assert on the flush COUNT/kind, not the delta wording.
+        return Task.FromResult(new MemoryFlushOutcome(kind, true, NextComposition, NextComposition));
+    }
+}
