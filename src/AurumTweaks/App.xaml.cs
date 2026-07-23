@@ -116,7 +116,9 @@ public partial class App : Application
         services.AddSingleton<ILicenseStore, LicenseStore>();
         services.AddSingleton<ILicenseService, LicenseService>();
         services.AddSingleton<IGameDetectionService, GameDetectionService>();
-        services.AddSingleton<IGameOcBindingStore, GameOcBindingStore>();
+        // NOTE: IGameOcBindingStore is deliberately NOT registered — the per-game GPU-OC feature that would
+        // consume it is roadmap, not wired (see GameOcBinding / GameOcMatching). Registering a service with
+        // zero consumers would misrepresent it as live; it stays tested foundation until the feature is built.
         services.AddSingleton<INetworkOptiService, NetworkOptiService>();
         services.AddSingleton<IAppSettingsStore, AppSettingsStore>();
         // Native-interop seams over the static NVAPI/ADLX wrappers, so GpuOcService's orchestration is

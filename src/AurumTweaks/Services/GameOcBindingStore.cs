@@ -8,7 +8,8 @@ using Serilog;
 namespace AurumTweaks.Services;
 
 /// <summary>Persistence for the per-game GPU-OC bindings. JSON-store idiom: best-effort, never throws,
-/// returns an empty list on any I/O/parse trouble (a missing/corrupt file must never crash the app).</summary>
+/// returns an empty list on any I/O/parse trouble (a missing/corrupt file must never crash the app).
+/// Foundation for the planned per-game feature — not yet registered in DI nor consumed by the app.</summary>
 public interface IGameOcBindingStore
 {
     IReadOnlyList<GameOcBinding> Load();

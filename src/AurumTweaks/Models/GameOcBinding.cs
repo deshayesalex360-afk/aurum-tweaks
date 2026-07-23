@@ -4,12 +4,15 @@ using AurumTweaks.Services;
 namespace AurumTweaks.Models;
 
 /// <summary>
-/// Binds a GPU-OC profile to a detected game, so Aurum can apply it when that game is active and revert
-/// when it exits (the marquee "per-game profile" feature — Aurum already owns game detection + a
-/// reversible apply pipeline). The OC values are stored inline (flat, JSON-friendly); voltage is
-/// deliberately absent because Aurum never writes it. This is the persisted binding record only — the
-/// matching decision is the pure <see cref="GameOcMatching"/> core, and the launch/exit watcher +
-/// auto-apply live in the service layer.
+/// Data model for a planned "per-game GPU-OC profile" feature: binds a set of OC values to a game name.
+/// Aurum already owns game detection and a reversible apply pipeline, so this record plus the pure
+/// <see cref="GameOcMatching"/> core are the ready foundation. The OC values are stored inline (flat,
+/// JSON-friendly); voltage is deliberately absent because Aurum never writes it.
+///
+/// NOT YET WIRED — roadmap. There is no launch/exit watcher and no auto-apply today; nothing in the app
+/// consumes this binding yet (see <see cref="GameOcMatching"/>). When it is built it must be OPT-IN and
+/// user-visible — Aurum never silently applies an overclock in the background. Kept as tested foundation
+/// so the feature can be added deliberately, not sold as a live capability.
 /// </summary>
 public sealed class GameOcBinding
 {
